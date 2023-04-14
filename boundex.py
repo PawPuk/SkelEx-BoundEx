@@ -10,13 +10,13 @@ from linear_region import LinearRegion
 
 
 class BoundEx:
-    def __init__(self, skeletons_of_membership_functions, hyperrectangle):
-        self.skeletons = skeletons_of_membership_functions
+    def __init__(self, skeletons_of_decision_functions, hyperrectangle):
+        self.skeletons = skeletons_of_decision_functions
         self.hyperrectangle = hyperrectangle
 
     @staticmethod
     def test_order_of_linear_regions(linear_regions: List[LinearRegion]):
-        """We know that all membership functions have the same skeleton (coordinate-wise). We want to assume that those
+        """We know that all decision functions have the same skeleton (coordinate-wise). We want to assume that those
         linear regions have been created in the same order. We check whether this is the case here.
 
         @param linear_regions: list of linear regions (they all should be equal)
@@ -59,12 +59,12 @@ class BoundEx:
         cma = self.argmax(start_values)  # current maximum argument
         p1 = start_p
         v1 = self.skeletons[cma].values[p1]
-        memberships = [cma]
+        decisions = [cma]
         while cma != self.argmax(end_values):
             e1 = ((p1[0], p1[1], v1), (end_p[0], end_p[1], self.skeletons[cma].values[end_p]))
             intersection = None
-            new_membership = -1  # TODO: should not be necessary
-            for i in [index for index in range(len(self.skeletons)) if index not in memberships]:
+            new_decision = -1  # TODO: should not be necessary
+            for i in [index for index in range(len(self.skeletons)) if index not in decisions]:
                 e2 = ((start_p[0], start_p[1], self.skeletons[i].values[start_p]),
                       (end_p[0], end_p[1], self.skeletons[i].values[end_p]))
                 current_intersection = self.find_intersection(e1, e2)
@@ -72,17 +72,17 @@ class BoundEx:
                 if LineString([p1, end_p]).distance(Point(current_intersection)) < 1e-5:
                     if intersection is None:
                         intersection = current_intersection
-                        new_membership = i
+                        new_decision = i
                     # check if current_intersection is closer to p1 than intersection
                     elif Point(p1).distance(Point(current_intersection)) < Point(p1).distance(Point(intersection)):
                         intersection = current_intersection
-                        new_membership = i
+                        new_decision = i
             self.append_to_dictionary(points, cma, intersection)
-            self.append_to_dictionary(points, new_membership, intersection)
+            self.append_to_dictionary(points, new_decision, intersection)
             v1 = self.find_v1(intersection, e1)
             p1 = intersection
-            cma = new_membership
-            memberships.append(new_membership)
+            cma = new_decision
+            decisions.append(new_decision)
         return points
 
     @staticmethod
@@ -96,7 +96,7 @@ class BoundEx:
     def argmax(l):
         return max(enumerate(l), key=lambda x: x[1])[0]
 
-    def extract_decision_boundary_from_skeletons_of_membership_functions(self):
+    def extract_decision_boundary_from_skeletons_of_decision_functions(self):
         # TODO: test this once again with hyperrectangle starting at 0
         classification_polygons = {}
         lines_used = []
@@ -106,7 +106,7 @@ class BoundEx:
             for skeleton_index in range(len(self.skeletons)):
                 linear_region_variations.append(self.skeletons[skeleton_index].linear_regions[lr_index])
             self.test_order_of_linear_regions(linear_region_variations)
-            # find points where the membership changes and put them into memberships dictionary
+            # find points where the decision changes and put them into decision dictionary
             if linear_region_variations[0].polygon.interiors:
                 raise NotImplementedError
 
@@ -117,7 +117,7 @@ class BoundEx:
             for point_index in range(1, len(xx)):  # go through each point of the linear region
                 this_p = (xx[point_index], yy[point_index])
                 this_values = [self.skeletons[i].values[this_p] for i in range(len(self.skeletons))]
-                if self.argmax(last_values) != self.argmax(this_values):  # find edges on which membership changes
+                if self.argmax(last_values) != self.argmax(this_values):  # find edges on which decision changes
                     self.find_coordinates(last_values, this_values, last_p, this_p, classification_points)
                     if [last_p, this_p] not in lines_used and [this_p, last_p] not in lines_used:
                         lines_used.append([last_p, this_p])
@@ -155,10 +155,10 @@ class BoundEx:
 
     @staticmethod
     def classify(point, decision_boundary):
-        for membership in range(len(decision_boundary) - 1):
-            poly = decision_boundary[membership][0]
+        for decision in range(len(decision_boundary) - 1):
+            poly = decision_boundary[decision][0]
             if poly.contains(point):
-                return membership
+                return decision
         return len(decision_boundary) - 1
 
     def plot(self, classification_polygons, lines_used, data, add_data=False, my_ax=None, skeleton=None):

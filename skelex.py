@@ -1,4 +1,5 @@
 from copy import deepcopy
+import pickle
 from typing import Dict, List, Tuple
 
 from shapely.geometry import Polygon
@@ -79,6 +80,12 @@ class SkelEx:
             skeletons.append(current_skeleton)
         return skeletons
 
+    def save_skeleton(self, skeletons_of_learned_decision_functions):
+        with open('skeletons.pkl', 'wb') as f:
+            pickle.dump(skeletons_of_learned_decision_functions, f)
+        with open('points.pkl', 'wb') as f:
+            pickle.dump(self.point_bank, f)
+
     def main(self):
         # Extract weights and biases of the trained NN, and calculate pre-activations of the first hidden layer
         weights = self.parameters[0].data.tolist()
@@ -103,4 +110,5 @@ class SkelEx:
         print(
             '------------------------------------------------------------------------------------------------------------\n'
             'A total of ' + str(len(pre_activations[0].linear_regions)) + ' linear regions were formed.')
+        self.save_skeleton(pre_activations)
         return pre_activations

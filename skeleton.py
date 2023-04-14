@@ -305,14 +305,8 @@ class Skeleton:
         new_skeleton.test_validity()
         return new_skeleton
 
-    def plot_skeleton(self, title, mode=0, save=False, point_bank=None, ax=None):
+    def plot_skeleton(self, title, ax, mode=0, save=False, point_bank=None):
         # prepare graph
-        if ax is None:
-            ax = plt.figure(title, figsize=(7, 7)).add_subplot()
-            ax.set_xlim(self.hyperrectangle.x)
-            ax.set_ylim(self.hyperrectangle.y)
-            ax.set_xlabel(r'$x_1$', labelpad=5)
-            ax.set_ylabel(r'$x_2$', labelpad=5)
         for linear_region in self.linear_regions:
             linear_region.new_plot(ax, self.values, point_bank, mode=mode)
         if save:
