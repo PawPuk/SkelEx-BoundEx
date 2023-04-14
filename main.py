@@ -1,20 +1,15 @@
-import copy
 import os
 import pickle
 from time import time
-from typing import List, Tuple, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
-from shapely.geometry import Polygon
 import torch
 
 from boundex import BoundEx
 from dataset import Dataset2D
 from hyperrectangle import Hyperrectangle
-from linear_region import LinearRegion
 from ReLU_NN import ReLUNeuralNetwork
-from skeleton import Skeleton
 from skelex import SkelEx
 from train import TrainedNeuralNetwork
 
@@ -89,7 +84,7 @@ if __name__ == '__main__':
         my_data, vis_data = Dataset2D()
     else:
         my_data = (Dataset2D(class_size=3*data_size).data.to(dev), Dataset2D(class_size=data_size).data.to(dev))
-    hyperrectangle = Hyperrectangle(-1.3, 1.3, -1.3, 1.3)  # TODO: define using my_data!!!
+    hyperrectangle = Hyperrectangle(my_data)
 
     # Train NN and save it
     if os.path.isfile("model.pth") and not train:
