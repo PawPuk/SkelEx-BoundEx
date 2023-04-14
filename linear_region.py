@@ -68,7 +68,7 @@ class LinearRegion:
                     color = 'yellow'
                 ax.scatter(vertex[0], vertex[1], s=25, c=color, zorder=2, clip_on=False)
             else:
-                raise 'Wrong parameters - wrong value of mode or point_bank not passed'
+                color = 'black'
             # Plot edges
             ax.plot([vertex[0], next_vertex[0]], [vertex[1], next_vertex[1]], c='black', linewidth=2, zorder=1,
                     alpha=1, linestyle='solid')

@@ -32,7 +32,7 @@ class Visualizer:
                 output[r].append(loss(result, torch.tensor([class_index])).item())
         return np.array(output)
 
-    def prepare_graph(self, title, mode='2D'):
+    def prepare_graph(self, title, mode='2D', rotation=0):
         if mode == '3D':
             ax = plt.figure(title).add_subplot(projection='3d')
             ax.view_init(37, 176)
@@ -41,8 +41,20 @@ class Visualizer:
             ax = plt.figure(title, figsize=(7, 7)).add_subplot()
             ax.set_xlim(self.R.x)
             ax.set_ylim(self.R.y)
-        ax.set_xlabel(r'$x_1$', labelpad=2)
-        ax.set_ylabel(r'$x_2$', labelpad=2)
+            if rotation != 0:
+                ax.xaxis.tick_top()
+                ax.xaxis.set_label_position('top')
+                ax.yaxis.tick_right()
+                ax.yaxis.set_label_position('right')
+                labels = ax.get_xticklabels()
+                for label in labels:
+                    label.set_rotation(rotation)
+                labels = ax.get_yticklabels()
+                for label in labels:
+                    label.set_rotation(rotation)
+        ax.set_xlabel(r'$x_1$', labelpad=2).set_rotation(rotation)
+        ax.set_ylabel(r'$x_2$', labelpad=2).set_rotation(rotation)
+
         return ax
 
     def add_skeleton_to_decision_landscape(self, dec_ax):
@@ -56,30 +68,49 @@ class Visualizer:
                 end_zs = [self.skeletons[k].values[(xx[v_i + 1], yy[v_i + 1])] for k in range(self.k)]
                 dec_ax.plot([xx[v_i], xx[v_i + 1]], [yy[v_i], yy[v_i + 1]], [max(start_zs), max(end_zs)], c='black')
 
-    def plot_skeleton(self, point_bank, ax):
+    def plot_skeleton(self, point_bank=None, ax=None):
         self.skeletons[0].plot_skeleton('Membership function 2', ax, point_bank=point_bank, mode=1)
 
     @staticmethod
-    def plot_decision_boundary(boundary_extractor, classification_polygons, lines_used, ax, data):
-        boundary_extractor.plot(classification_polygons, lines_used, data, add_data=True, my_ax=ax)
+    def plot_decision_boundary(boundary_extractor, classification_polygons, lines_used, ax, data=None, save=False):
+        if data:
+            boundary_extractor.plot(classification_polygons, lines_used, data, add_data=True, my_ax=ax)
+        else:
+            boundary_extractor.plot(classification_polygons, lines_used, data, add_data=False, my_ax=ax)
+        if save:
+            plt.savefig('Figures/decision_boundary_2D_projection.pdf')
 
-    def draw_loss_landscape(self, class_index=0):
+    def draw_loss_landscape(self, elev, azim, roll, class_index=0, save=False):
         X, Y = np.meshgrid(np.linspace(self.R.x[0], self.R.x[1], 50), np.linspace(self.R.y[0], self.R.y[1], 50))
         loss_ax = self.prepare_graph('loss landscape', '3D')
+        loss_ax.view_init(elev=elev, azim=azim, roll=roll)
         loss_Z = self.loss_f(X, Y, class_index=class_index)
         loss_ax.plot_surface(X, Y, loss_Z, rstride=1, cstride=1, edgecolor='none', alpha=0.6, zorder=1)
+        if save:
+            plt.savefig('Figures/loss_landscape.pdf')
 
-    def draw_decision_landscape(self, skeleton=False, decision=False, heatmap=False):
+    def draw_decision_landscape(self, elev, azim, roll, skeleton=False, decision=False, heatmap=False, save=False):
         if decision and heatmap:
             raise Exception('Cannot have both `decision` and `heatmap` set to True')
         X, Y = np.meshgrid(np.linspace(self.R.x[0], self.R.x[1], 50), np.linspace(self.R.y[0], self.R.y[1], 50))
         dec_ax = self.prepare_graph('decision landscape', '3D')
+        dec_ax.view_init(elev=elev, azim=azim, roll=roll)
         decision_Zs = self.decision_functions(X, Y)
         max_f = np.maximum(decision_Zs[0], decision_Zs[1])
         if decision:
-            dec_ax.plot_surface(X, Y, max_f, facecolors=np.where(decision_Zs[0] >= decision_Zs[1], 'b', 'm'), alpha=0.5,
+            dec_ax.plot_surface(X, Y, max_f, facecolors=np.where(decision_Zs[0] >= decision_Zs[1], 'b', 'm'), alpha=0.6,
                                 linewidth=0)
         if heatmap:
             dec_ax.plot_surface(X, Y, max_f, cmap=cm.coolwarm, alpha=0.8, linewidth=0, antialiased=False)
         if skeleton:
             self.add_skeleton_to_decision_landscape(dec_ax)
+        if save:
+            name = 'Figures/'
+            if skeleton:
+                name += 's'
+            if decision:
+                name += 'd'
+            if heatmap:
+                name += 'h'
+            name += '_decision_landscape.pdf'
+            plt.savefig(name)
