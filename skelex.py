@@ -8,6 +8,7 @@ from hyperrectangle import Hyperrectangle
 from linear_region import LinearRegion
 from skeleton import Skeleton
 
+
 class SkelEx:
     def __init__(self, parameters, point_bank, hyperrectangle, error=1e-5):
         self.point_bank = point_bank

@@ -15,16 +15,18 @@ from visualisation import Visualizer
 
 
 if __name__ == '__main__':
-    # Set hyperparameters and generate data
+    # You probably want to change those
+    number_of_classes = 2
+    number_of_parameters = 2
+    layers_width = [number_of_parameters, 10, 10, number_of_classes]
+    data_size = 1000
+    number_of_epochs = 50
+    # You probably don't want to change those
     train = False
     create_figure_for_the_dataset = False
     create_2d_figures_for_decision_functions = False
-    number_of_classes = 2
-    number_of_parameters = 2
-    layers_width = [number_of_parameters, 10, 10, 10, number_of_classes]
-    data_size = 1000
     dataset = None  # set to 'balance_set' to work with the balance scale UCI dataset
-    number_of_epochs = 50
+    # You definitely don't want to change those
     global_point_bank = {}
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     """if torch.backends.mps.is_available():
@@ -64,11 +66,11 @@ if __name__ == '__main__':
     print(f'The decision boundary is created via {len(lines_used)} line segments.')
     # Visualize results
     visualizer = Visualizer(skeletons_of_learned_decision_functions, trained_model, hyperrectangle, number_of_classes)
-    ax = visualizer.prepare_graph("Skeleton tessellation", rotation=180)
+    ax = visualizer.prepare_graph("Skeleton tessellation")  # set rotation=180 to get image from Figure 1
     visualizer.plot_skeleton(None, ax)
     visualizer.plot_decision_boundary(boundary_extractor, classification_polygons, lines_used, ax, save=True)
     visualizer.draw_loss_landscape(25, 50, 0, class_index=1, save=True)   # set class_index=1 for blue class
-    visualizer.draw_decision_landscape(25, 50, 0, skeleton=True, decision=True, heatmap=False, save=True)
+    visualizer.draw_decision_landscape(25, 50, 0, skeleton=False, decision=True, heatmap=False, save=True)
     print('Done!')
 
     if create_figure_for_the_dataset:

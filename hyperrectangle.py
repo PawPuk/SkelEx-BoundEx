@@ -20,7 +20,6 @@ class Hyperrectangle:
              torch.round(maxs[1] + abs(0.5*maxs[1]), decimals=1).item())
         return x, y
 
-
     def convert_to_polygon(self):
         p1 = (self.x[0], self.y[0])
         p2 = (self.x[0], self.y[1])
