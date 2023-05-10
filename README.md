@@ -1,5 +1,5 @@
 # SkelEx-BoundEx
-This repository contains the code for the paper *SkelEx and BoundEx: Natural Visualization of ReLU Neural Networks* 
+This repository contains the code for the paper [SkelEx and BoundEx: Natural Visualization of ReLU Neural Networks](https://arxiv.org/abs/2305.05562) 
 writen by Pawel Pukowski and Haiping Lu from the University of Sheffield. The link to the paper will be added soon. 
 This work allows us to transfer the weights and biases encoding into an encoding using the skeleton formed by the 
 critical points of the learned functions, allowing for natural visualization of the functions learned by ReLU NNs
