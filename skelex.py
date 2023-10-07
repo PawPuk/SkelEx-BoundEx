@@ -93,23 +93,23 @@ class SkelEx:
         biases = self.parameters[1].data.tolist()
 
         print(
-            '---------------------------------------------------------------------------------------------------\n|Layer 1')
+            '-----------------------------------------------------------------------------------------------\n|Layer 1')
         pre_activations = self.calculate_pre_activations(weights, biases, self.R, self.point_bank)
         for layer_index in range(1, len(self.parameters) // 2):
             print('| ReLU')
             activations = []
             for pre_activation_index in range(len(pre_activations)):
                 pre_activation = pre_activations[pre_activation_index]
-                activation = pre_activation.new_relu(self.point_bank, layer_index)
+                activation = pre_activation.relu(self.point_bank, layer_index)
                 activations.append(activation)
             print(f'|Layer {layer_index + 1}')
             pre_activations = self.merge_activations(activations, self.parameters[2 * layer_index].data.tolist(),
-                                                self.parameters[2 * layer_index + 1].data.tolist(), self.point_bank,
-                                                layer_index + 0.5)
+                                                     self.parameters[2 * layer_index + 1].data.tolist(),
+                                                     self.point_bank, layer_index + 0.5)
         for skeleton in pre_activations:
             skeleton.test_validity()
         print(
-            '------------------------------------------------------------------------------------------------------------\n'
+            '--------------------------------------------------------------------------------------------------------\n'
             'A total of ' + str(len(pre_activations[0].linear_regions)) + ' linear regions were formed.')
         self.save_skeleton(pre_activations)
         return pre_activations

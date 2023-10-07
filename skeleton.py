@@ -1,3 +1,4 @@
+import copy
 import math
 from typing import Tuple, List, Dict, Union, Any
 
@@ -51,7 +52,7 @@ class Skeleton:
     @staticmethod
     def find_the_closest_point_from_the_bank(point_bank: Dict[Tuple[float, float], float], p: Point, index: float,
                                              values: Union[Dict[Tuple[float, float], float], None],
-                                             error=pow(10, -10)) -> Tuple[float, float]:
+                                             error=pow(10, -13)) -> Tuple[float, float]:
         # go through all the points from the point_bank
         xx, yy = p.coords.xy
         if (xx[0], yy[0]) in point_bank:  # adding this increases speed as dictionary lookup is O(1).
@@ -223,6 +224,81 @@ class Skeleton:
                 return True
         # We include Polygons as intersection options, as due to a bug sometimes polygons are returned instead of lines
         return False
+
+    def assign_point_based_on_value(self, p, positive_points, negative_points, positive):
+        if self.values[p] > 0:
+            positive = True
+            positive_points.append(p)
+        elif self.values[p] < 0:
+            positive = False
+            negative_points.append(p)
+
+    @staticmethod
+    def find_relu_intersection(start_point, end_point):
+        # Check if the line segment is parallel to the z = 0 plane
+        if start_point[2] == end_point[2]:
+            return None  # No intersection, the line is parallel to the plane
+        # Calculate the parameter "t" at which the line intersects the z = 0 plane
+        t = -start_point[2] / (end_point[2] - start_point[2])
+        # Calculate the intersection point
+        x = start_point[0] + t * (end_point[0] - start_point[0])
+        y = start_point[1] + t * (end_point[1] - start_point[1])
+        z = 0  # Since it intersects the z = 0 plane
+        return x, y, z
+
+    def division_by_relu(self, prev_p, p, positive_points, negative_points, new_skeleton, point_bank, index):
+        x, y, z = self.find_relu_intersection((*prev_p, self.values[prev_p]), (*p, self.values[p]))
+        x, y = self.find_the_closest_point_from_the_bank(point_bank, Point(x, y), index, None)
+        positive_points.append((x, y))
+        negative_points.append((x, y))
+        new_skeleton.values[(x, y)] = 0
+
+    def relu(self, global_point_bank: Dict[Tuple[float, float], int], index: float) -> "Skeleton":
+        new_skeleton = Skeleton([], self.hyperrectangle, copy.deepcopy(self.values))
+        for activation_region in self.linear_regions:
+            positive_points = []
+            negative_points = []
+            if activation_region.gradient != [0, 0]:
+                xx, yy = activation_region.polygon.exterior.xy
+                p = (xx[0], yy[0])
+                if self.values[p] == 0:
+                    positive = self.values[(xx[1], yy[1])] > 0  # non-zero gradient so next point has non-zero value
+                else:
+                    positive = self.values[p] > 0
+                for i in range(1, len(xx)):  # iterate through all vertices of activation region
+                    prev_p = (xx[i-1], yy[i-1])
+                    p = (xx[i], yy[i])
+                    if self.values[p] > 0:
+                        if not positive:  # intersection with 0
+                            positive = True
+                            self.division_by_relu(prev_p, p, positive_points, negative_points, new_skeleton,
+                                                  global_point_bank, index)
+                        positive_points.append(p)
+                    elif self.values[p] < 0:
+                        if positive:  # intersection with 0
+                            positive = False
+                            self.division_by_relu(prev_p, p, positive_points, negative_points, new_skeleton,
+                                                  global_point_bank, index)
+                        new_skeleton.values[p] = 0  # ReLU changes negative vertices to neutral (0)
+                        negative_points.append(p)
+                # Append the activation regions created by ReLU to new_skeleton
+                if len(positive_points) > 0:
+                    new_skeleton.linear_regions.append(
+                        LinearRegion(Polygon(positive_points), activation_region.gradient))
+                if len(negative_points) > 0:
+                    new_skeleton.linear_regions.append(LinearRegion(Polygon(negative_points), [0, 0]))
+            else:
+                xx, yy = activation_region.polygon.exterior.xy
+                positive = self.values[(xx[0], yy[0])] > 0
+                for i in range(len(xx)):
+                    if not positive:
+                        new_skeleton.values[(xx[i], yy[i])] = 0
+                if positive:
+                    new_skeleton.linear_regions.append(LinearRegion(activation_region, activation_region.gradient))
+                else:
+                    new_skeleton.linear_regions.append(LinearRegion(activation_region, [0, 0]))
+        new_skeleton.test_validity()
+        return new_skeleton
 
     def new_relu(self, global_point_bank: Dict[Tuple[float, float], int], index: float) -> "Skeleton":
         new_skeleton = Skeleton([], self.hyperrectangle, {})
