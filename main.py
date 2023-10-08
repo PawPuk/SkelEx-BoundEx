@@ -20,7 +20,7 @@ if __name__ == '__main__':
     number_of_parameters = 2
     layers_width = [number_of_parameters, 10, 10, number_of_classes]
     data_size = 1000
-    number_of_epochs = 50
+    number_of_epochs = 15
     # You probably don't want to change those
     train = False
     create_figure_for_the_dataset = False
@@ -28,6 +28,7 @@ if __name__ == '__main__':
     dataset = None  # set to 'balance_set' to work with the balance scale UCI dataset
     # You definitely don't want to change those
     global_point_bank = {}
+    training_skeletons = False
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     """if torch.backends.mps.is_available():
         dev = torch.device('mps')"""
@@ -38,27 +39,44 @@ if __name__ == '__main__':
         my_data = (Dataset2D(class_size=3*data_size).data.to(dev), Dataset2D(class_size=data_size).data.to(dev))
         vis_data = my_data
     hyperrectangle = Hyperrectangle(my_data)
-    # Train NN and save it or load trained network
-    if os.path.isfile("model.pth") and not train:
-        trained_model = ReLUNeuralNetwork(layers_width)
-        trained_model.load_state_dict(torch.load("model.pth"))
+    if training_skeletons:
+        activation_regions_count = []
+        my_model = ReLUNeuralNetwork(layers_width, initialization='xavier')
+        for _ in range(number_of_epochs):
+            my_model = TrainedNeuralNetwork(my_model, my_data, number_of_parameters, epochs=2, lr=1e-3,
+                                            opt='ADAM', mode=dataset)
+            my_model = my_model.main()
+            skelex = SkelEx(my_model.parameters(), global_point_bank, hyperrectangle)
+            skeletons_of_learned_functions = skelex.main()
+            activation_regions_count.append(len(skeletons_of_learned_functions[0].linear_regions))
+        print(activation_regions_count)
+        plt.plot(activation_regions_count)
+        plt.xlabel('Epoch')
+        plt.ylabel('Activation Regions')
+        plt.title('Number of activation regions over epochs')
+        plt.show()
     else:
-        my_model = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
-                                        number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3, opt='ADAM',
-                                        mode=dataset)
-        trained_model = my_model.main()
-        torch.save(trained_model.state_dict(), "model.pth")
-    # Load skeleton if SkelEx was already run. Run SkelEx otherwise
-    if os.path.isfile('skeletons.pkl') and not train:
-        with open('skeletons.pkl', 'rb') as f:
-            skeletons_of_learned_decision_functions = pickle.load(f)
-        with open('points.pkl', 'rb') as f:
-            global_point_bank = pickle.load(f)
-    else:
-        t0 = time()
-        skelex = SkelEx(trained_model.parameters(), global_point_bank, hyperrectangle)
-        skeletons_of_learned_decision_functions = skelex.main()
-        print("SkelEx finished within " + str(time()-t0) + " seconds.")
+        # Train NN and save it or load trained network
+        if os.path.isfile("model.pth") and not train:
+            trained_model = ReLUNeuralNetwork(layers_width)
+            trained_model.load_state_dict(torch.load("model.pth"))
+        else:
+            my_model = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
+                                            number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3, opt='ADAM',
+                                            mode=dataset)
+            trained_model = my_model.main()
+            torch.save(trained_model.state_dict(), "model.pth")
+        # Load skeleton if SkelEx was already run. Run SkelEx otherwise
+        if os.path.isfile('skeletons.pkl') and not train:
+            with open('skeletons.pkl', 'rb') as f:
+                skeletons_of_learned_decision_functions = pickle.load(f)
+            with open('points.pkl', 'rb') as f:
+                global_point_bank = pickle.load(f)
+        else:
+            t0 = time()
+            skelex = SkelEx(trained_model.parameters(), global_point_bank, hyperrectangle)
+            skeletons_of_learned_decision_functions = skelex.main()
+            print("SkelEx finished within " + str(time()-t0) + " seconds.")
     # Run BoundEx
     boundary_extractor = BoundEx(skeletons_of_learned_decision_functions, hyperrectangle)
     classification_polygons, lines_used = \
