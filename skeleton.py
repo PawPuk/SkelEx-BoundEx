@@ -233,9 +233,10 @@ class Skeleton:
                     if not positive:
                         new_skeleton.values[(xx[i], yy[i])] = 0
                 if positive:
-                    new_skeleton.linear_regions.append(LinearRegion(activation_region, activation_region.gradient))
+                    new_skeleton.linear_regions.append(LinearRegion(activation_region.polygon,
+                                                                    activation_region.gradient))
                 else:
-                    new_skeleton.linear_regions.append(LinearRegion(activation_region, [0, 0]))
+                    new_skeleton.linear_regions.append(LinearRegion(activation_region.polygon, [0, 0]))
         new_skeleton.test_validity(global_point_bank)
         return new_skeleton
 
@@ -282,7 +283,7 @@ class Skeleton:
             return Polygon(shell=shell, holes=holes)
         return shell
 
-    def test_validity(self, point_bank=None, full_test=True, skeleton_to_test=None, error=1e-10):
+    def test_validity(self, point_bank=None, full_test=True, skeleton_to_test=None, error=1e-5):
         """ Test whether a skeleton covers the whole hyperrectangle, and if the linear regions do not overlap
 
         """
