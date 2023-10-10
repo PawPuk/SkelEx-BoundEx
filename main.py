@@ -66,6 +66,49 @@ if __name__ == '__main__':
                                             mode=dataset)
             trained_model = my_model.main()
             torch.save(trained_model.state_dict(), "model.pth")
+
+
+        network_weights = []
+        # Iterate through the model's parameters and extract the weights and biases
+        for name, param in trained_model.named_parameters():
+            if 'weight' in name:
+                # Extract weights
+                weights = param.data.numpy()
+            elif 'bias' in name:
+                # Extract biases
+                biases = param.data.numpy()
+                # Assuming that weights and biases are associated with the same layer
+                network_weights.append((weights, biases))
+
+        def forward_pass(x, network_weights):
+            activations1 = [x]
+            preactivations1 = []
+
+            for weights, bias in network_weights:
+                preactivation = np.dot([activations1[-1]], np.array(weights).transpose()) + bias
+                activation = np.maximum(0, preactivation)  # Apply ReLU activation
+                activations1.append(activation)
+                preactivations1.append(preactivation)
+
+            return activations1, preactivations1
+
+        import numpy as np
+        # Pass the input data through the network to get activations and preactivations
+        input_data = np.array([-1.0, -0.1])
+        activations, preactivations = forward_pass(input_data, network_weights)
+        print(preactivations)
+        print()
+        print(activations)
+        print()
+        print(trained_model(torch.tensor([[-1.0, -0.1]])))
+        print('-------------------------------------------------------------------------------------------')
+        input_data = np.array([-1.0, -0.2])
+        activations, preactivations = forward_pass(input_data, network_weights)
+        print(preactivations)
+        print()
+        print(activations)
+        print()
+        print(trained_model(torch.tensor([[-1.0, -0.2]])))
         # Load skeleton if SkelEx was already run. Run SkelEx otherwise
         if os.path.isfile('skeletons.pkl') and not train:
             with open('skeletons.pkl', 'rb') as f:
