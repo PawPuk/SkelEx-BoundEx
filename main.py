@@ -23,7 +23,7 @@ if __name__ == '__main__':
     layers_width = [number_of_parameters, 20, 10, number_of_classes]
     data_size = 1000
     number_of_epochs = 150
-    dropout_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.8, 0.85]
+    dropout_rates = [0, 0.8]
     # You probably don't want to change those
     train = False
     dataset = None  # set to 'balance_set' to work with the balance scale UCI dataset
@@ -34,19 +34,22 @@ if __name__ == '__main__':
     my_data = (Dataset2D(class_size=3*data_size).data.to(dev), Dataset2D(class_size=data_size).data.to(dev))
     hyperrectangle = Hyperrectangle(my_data)
     linear_regions = []
+    accuracies = [[], []]
     for _ in range(len(dropout_rates)):
         linear_regions.append([[], []])
-    for _ in tqdm(range(15), desc="Processing"):
+    for _ in tqdm(range(2), desc="Processing"):
         # For fairness make sure both networks have the same initialisation
         torch.manual_seed(random.randint(1, int(math.pow(2, 32)) - 1))
-        my_model2 = TrainedNeuralNetwork(DropoutReLUNeuralNetwork(layers_width, initialization='xavier', dropout_prob=0.2),
-                                         my_data, number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3,
-                                         opt='ADAM', mode=dataset)
-        trained_model2 = my_model2.main()
         my_model1 = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
                                          number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3, opt='ADAM',
                                          mode=dataset)
-        trained_model1 = my_model1.main()
+        trained_model1, accuracy = my_model1.main()
+        accuracies[0].append(accuracy)
+        my_model2 = TrainedNeuralNetwork(DropoutReLUNeuralNetwork(layers_width, initialization='xavier', dropout_prob=0.2),
+                                         my_data, number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3,
+                                         opt='ADAM', mode=dataset)
+        trained_model2, accuracy = my_model2.main()
+        accuracies[1].append(accuracy)
         # Run SkelEx on the two networks
         skeletons1 = []
         skeletons2 = []
@@ -63,7 +66,7 @@ if __name__ == '__main__':
             try:
                 skeletons1.append(skelex1.main(percentages))
                 linear_regions[dropout_rate_index][0].append(len(skeletons1[-1][0].linear_regions))
-                print("SkelEx finished within " + str(time()-t0) + " seconds when dropout was not used.")
+                # print("SkelEx finished within " + str(time()-t0) + " seconds when dropout was not used.")
             except:
                 print('Lost one measurement due to error.')
             t0 = time()
@@ -71,7 +74,7 @@ if __name__ == '__main__':
             try:
                 skeletons2.append(skelex2.main(percentages))
                 linear_regions[dropout_rate_index][1].append(len(skeletons2[-1][0].linear_regions))
-                print("SkelEx finished within " + str(time() - t0) + " seconds when dropout was used.")
+                # print("SkelEx finished within " + str(time() - t0) + " seconds when dropout was used.")
             except:
                 print('Lost one measurement due to error.')
     """# Run BoundEx
@@ -105,6 +108,13 @@ if __name__ == '__main__':
     std_dev_function1 = []
     means_function2 = []
     std_dev_function2 = []
+    mean_accuracies_without_dropout = np.mean(accuracies[0])
+    std_accuracies_without_dropout = np.std(accuracies[0])
+    mean_accuracies_with_dropout = np.mean(accuracies[1])
+    std_accuracies_with_dropout = np.std(accuracies[1])
+    print('The average accuracy of networks without dropout was', mean_accuracies_without_dropout, u"\u00B1",
+          std_accuracies_without_dropout, '. Whereas for networks with dropout this was', mean_accuracies_with_dropout,
+          u"\u00B1", std_accuracies_with_dropout)
     # Calculate means and standard deviations for each sublist
     for sublist in linear_regions:
         function1_values = sublist[0]

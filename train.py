@@ -65,6 +65,7 @@ class TrainedNeuralNetwork:
                     correct += (pred.argmax(1).unsqueeze(1) == y).sum().item()
         test_loss /= num_batches
         correct /= size
+        return correct*100
         # print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
     def main(self):
@@ -79,10 +80,11 @@ class TrainedNeuralNetwork:
         else:
             raise 'Wrong optimizer; Only options available are "ADAM" and "SGD"'
 
+        final_accuracy = None
         for t in range(self.epochs):
             # print(f"Epoch {t+1}\n-------------------------------")
             self.train(train_dataloader, model, optimizer)
-            self.test(test_dataloader, model)
-        print("Done!")
+            final_accuracy = self.test(test_dataloader, model)
+        # print("Done!")
 
-        return model
+        return model, final_accuracy
