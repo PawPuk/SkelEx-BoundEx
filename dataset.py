@@ -18,40 +18,6 @@ class Dataset2D(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
-    @staticmethod
-    def transform_matrix_to_torch_tensor(data):
-        instances = len(data[0])
-        torch_data = torch.tensor(data[0])
-        torch_data = torch_data.reshape(instances, 1)
-        for i in range(1, len(data)):
-            torch_data = torch.hstack((torch_data, torch.tensor(data[i]).reshape(instances, 1)))
-        return torch_data
-
-    def balance_scale_data(self):
-        f = open('Data/balance-scale.data', 'r')
-        data = [[], [], [], [], []]  # left_distance, left_weight, right_distance, right_weight, class
-        vis_data = [[], [], []]
-        for line in f:
-            line = line.split(',')
-            line[-1] = line[-1][:-1]  # remove \n
-            if line[0] == 'L':
-                data[-1].append(0)
-            elif line[0] == 'B':
-                data[-1].append(1)
-            else:
-                data[-1].append(2)
-            for i in range(1, len(line)):
-                data[i - 1].append(int(line[i]))
-        for i in range(len(data[0])):
-            vis_data[0].append(data[0][i] * data[1][i])
-            vis_data[1].append(data[2][i] * data[3][i])
-            vis_data[2].append(data[4][i])
-        torch_data = self.transform_matrix_to_torch_tensor(vis_data)
-        lengths = [int(len(torch_data) * 0.8), int(len(torch_data) * 0.2)]
-        torch_data = torch.utils.data.random_split(torch_data, lengths)
-        vis_torch_data = self.transform_matrix_to_torch_tensor(vis_data)
-        return torch_data, vis_torch_data
-
     def populate_cluster(self, mean, i, final_data, k):
         dist = MultivariateNormal(torch.tensor(mean[i]), torch.eye(2))
         a = dist.sample([1, self.size])[0]

@@ -32,13 +32,19 @@ class Visualizer:
                 output[r].append(loss(result, torch.tensor([class_index])).item())
         return np.array(output)
 
-    def prepare_graph(self, title, mode='2D', rotation=0):
+    def prepare_graph(self, title=None, mode='2D', rotation=0):
         if mode == '3D':
-            ax = plt.figure(title).add_subplot(projection='3d')
+            if title is not None:
+                ax = plt.figure(title).add_subplot(projection='3d')
+            else:
+                ax = plt.figure().add_subplot(projection='3d')
             ax.view_init(37, 176)
             ax.set_zlabel(r'$z$', labelpad=2)
         else:
-            ax = plt.figure(title, figsize=(7, 7)).add_subplot()
+            if title is not None:
+                ax = plt.figure(title, figsize=(7, 7)).add_subplot()
+            else:
+                ax = plt.figure(figsize=(7, 7)).add_subplot()
             ax.set_xlim(self.R.x)
             ax.set_ylim(self.R.y)
             if rotation != 0:

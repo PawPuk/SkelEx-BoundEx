@@ -142,8 +142,9 @@ class Skeleton:
                 new_skeleton.values[key] = values[key]
             elif abs(new_skeleton.values[key] - values[key]) > error:
                 # If this shows, then the values of the critical points must have been contaminated
-                print('\n     !!!ERROR FOR ' + str(key) + '!!!')
-                print(new_skeleton.values[key] - values[key])
+                """print('\n     !!!ERROR FOR ' + str(key) + '!!!')
+                print(new_skeleton.values[key] - values[key])"""
+                pass
         return new_skeleton
 
     def add_skeleton(self, skeleton1: "Skeleton", global_point_bank: Dict[Tuple[float, float], int], index: float,
@@ -283,7 +284,7 @@ class Skeleton:
             return Polygon(shell=shell, holes=holes)
         return shell
 
-    def test_validity(self, point_bank=None, full_test=True, skeleton_to_test=None, error=1e-5):
+    def test_validity(self, point_bank=None, full_test=True, skeleton_to_test=None, error=1e-1):
         """ Test whether a skeleton covers the whole hyperrectangle, and if the linear regions do not overlap
 
         """

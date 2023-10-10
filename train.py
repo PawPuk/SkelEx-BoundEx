@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 
 
 class TrainedNeuralNetwork:
-    def __init__(self, neural_network, datasets, number_of_parameters, batch_size=10, loss_fn=nn.CrossEntropyLoss(),
+    def __init__(self, neural_network, datasets, number_of_parameters, batch_size=32, loss_fn=nn.CrossEntropyLoss(),
                  lr=1e-3, epochs=1, wd=0, opt='Adam', mode='None'):
         self.input_nn = neural_network
         self.train_dataset, self.test_dataset = datasets
@@ -22,6 +22,7 @@ class TrainedNeuralNetwork:
         model.train()
         for batch, batched_samples in enumerate(dataloader):
             if self.mode == 'MNIST':
+                print(batched_samples)
                 X, y = batched_samples
             else:
                 X, y = torch.split(batched_samples, self.number_of_parameters, dim=1)
@@ -64,7 +65,7 @@ class TrainedNeuralNetwork:
                     correct += (pred.argmax(1).unsqueeze(1) == y).sum().item()
         test_loss /= num_batches
         correct /= size
-        print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+        # print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
 
     def main(self):
         train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
@@ -79,7 +80,7 @@ class TrainedNeuralNetwork:
             raise 'Wrong optimizer; Only options available are "ADAM" and "SGD"'
 
         for t in range(self.epochs):
-            print(f"Epoch {t+1}\n-------------------------------")
+            # print(f"Epoch {t+1}\n-------------------------------")
             self.train(train_dataloader, model, optimizer)
             self.test(test_dataloader, model)
         print("Done!")
