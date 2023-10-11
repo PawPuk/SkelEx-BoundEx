@@ -23,7 +23,7 @@ if __name__ == '__main__':
     layers_width = [number_of_parameters, 20, 10, number_of_classes]
     data_size = 1000
     number_of_epochs = 150
-    dropout_rates = [0, 0.8]
+    dropout_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.75, 0.8, 0.85]
     # You probably don't want to change those
     train = False
     dataset = None  # set to 'balance_set' to work with the balance scale UCI dataset
@@ -37,7 +37,7 @@ if __name__ == '__main__':
     accuracies = [[], []]
     for _ in range(len(dropout_rates)):
         linear_regions.append([[], []])
-    for _ in tqdm(range(2), desc="Processing"):
+    for _ in tqdm(range(50), desc="Processing"):
         # For fairness make sure both networks have the same initialisation
         torch.manual_seed(random.randint(1, int(math.pow(2, 32)) - 1))
         my_model1 = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
@@ -51,8 +51,6 @@ if __name__ == '__main__':
         trained_model2, accuracy = my_model2.main()
         accuracies[1].append(accuracy)
         # Run SkelEx on the two networks
-        skeletons1 = []
-        skeletons2 = []
         percentages = []
         for hidden_layer_index in range(len(layers_width) - 2):
             hidden_layer_percentages = []
@@ -64,17 +62,17 @@ if __name__ == '__main__':
             t0 = time()
             skelex1 = SkelEx(trained_model1.parameters(), global_point_bank, hyperrectangle, dropout=dropout_rate,)
             try:
-                skeletons1.append(skelex1.main(percentages))
-                linear_regions[dropout_rate_index][0].append(len(skeletons1[-1][0].linear_regions))
-                # print("SkelEx finished within " + str(time()-t0) + " seconds when dropout was not used.")
+                skeletons1 = skelex1.main(percentages)
+                linear_regions[dropout_rate_index][0].append(len(skeletons1[0].linear_regions))
+                print("SkelEx finished within " + str(time()-t0) + " seconds when dropout was not used.")
             except:
                 print('Lost one measurement due to error.')
             t0 = time()
             skelex2 = SkelEx(trained_model2.parameters(), global_point_bank, hyperrectangle, dropout=dropout_rate)
             try:
-                skeletons2.append(skelex2.main(percentages))
-                linear_regions[dropout_rate_index][1].append(len(skeletons2[-1][0].linear_regions))
-                # print("SkelEx finished within " + str(time() - t0) + " seconds when dropout was used.")
+                skeletons2 = skelex2.main(percentages)
+                linear_regions[dropout_rate_index][1].append(len(skeletons2[0].linear_regions))
+                print("SkelEx finished within " + str(time() - t0) + " seconds when dropout was used.")
             except:
                 print('Lost one measurement due to error.')
     """# Run BoundEx

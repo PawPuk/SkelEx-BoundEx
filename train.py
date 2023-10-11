@@ -85,6 +85,6 @@ class TrainedNeuralNetwork:
             # print(f"Epoch {t+1}\n-------------------------------")
             self.train(train_dataloader, model, optimizer)
             final_accuracy = self.test(test_dataloader, model)
-        # print("Done!")
+        print("Done!")
 
         return model, final_accuracy
