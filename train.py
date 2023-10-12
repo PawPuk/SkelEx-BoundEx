@@ -4,8 +4,8 @@ from torch.utils.data import DataLoader
 
 
 class TrainedNeuralNetwork:
-    def __init__(self, neural_network, datasets, number_of_parameters, batch_size=32, loss_fn=nn.CrossEntropyLoss(),
-                 lr=1e-3, epochs=1, wd=0, opt='Adam', mode='None'):
+    def __init__(self, neural_network, datasets, number_of_parameters=None, batch_size=32,
+                 loss_fn=nn.CrossEntropyLoss(), lr=1e-3, epochs=0, wd=0, opt='Adam', mode='None'):
         self.input_nn = neural_network
         self.train_dataset, self.test_dataset = datasets
         self.batch_size = batch_size
@@ -73,18 +73,18 @@ class TrainedNeuralNetwork:
         test_dataloader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=True)
 
         model = self.input_nn.to(self.device)
-        if self.optimizer == 'ADAM':
-            optimizer = torch.optim.Adam(model.parameters(), lr=self.lr, weight_decay=self.wd)
-        elif self.optimizer == 'SGD':
-            optimizer = torch.optim.SGD(model.parameters(), lr=self.lr, weight_decay=self.wd)
+        if self.epochs > 0:
+            if self.optimizer == 'ADAM':
+                optimizer = torch.optim.Adam(model.parameters(), lr=self.lr, weight_decay=self.wd)
+            elif self.optimizer == 'SGD':
+                optimizer = torch.optim.SGD(model.parameters(), lr=self.lr, weight_decay=self.wd)
+            else:
+                raise 'Wrong optimizer; Only options available are "ADAM" and "SGD"'
+            for t in range(self.epochs):
+                # print(f"Epoch {t+1}\n-------------------------------")
+                self.train(train_dataloader, model, optimizer)
+                self.test(test_dataloader, model)
+            print("Done!")
         else:
-            raise 'Wrong optimizer; Only options available are "ADAM" and "SGD"'
-
-        final_accuracy = None
-        for t in range(self.epochs):
-            # print(f"Epoch {t+1}\n-------------------------------")
-            self.train(train_dataloader, model, optimizer)
-            final_accuracy = self.test(test_dataloader, model)
-        print("Done!")
-
-        return model, final_accuracy
+            return self.test(test_dataloader, model)
+        return model
