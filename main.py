@@ -33,86 +33,80 @@ if __name__ == '__main__':
     # Prepare dataset and hyperrectangle
     my_data = (Dataset2D(class_size=3*data_size).data.to(dev), Dataset2D(class_size=data_size).data.to(dev))
     hyperrectangle = Hyperrectangle(my_data)
-    accuracies = []
-    for _ in range(len(dropout_rates)):
-        accuracies.append([[], []])
-    neuron_probabilities = []
-    for i in range(1, len(layers_width) - 1):
-        layer_probabilities = []
-        for _ in range(layers_width[i]):
-            layer_probabilities.append(random.random())
-        neuron_probabilities.append(layer_probabilities)
-    for _ in tqdm(range(200), desc="Processing"):
-        # For fairness make sure both networks have the same initialisation
-        torch.manual_seed(random.randint(1, int(math.pow(2, 32)) - 1))
-        my_model1 = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
-                                         number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3, opt='ADAM',
-                                         mode=dataset)
-        trained_model1 = my_model1.main()
-        my_model2 = TrainedNeuralNetwork(DropoutReLUNeuralNetwork(layers_width, initialization='xavier',
-                                                                  dropout_prob=0.2),
-                                         my_data, number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3,
-                                         opt='ADAM', mode=dataset)
-        trained_model2 = my_model2.main()
-        parameters1, parameters2 = [], []
-        for key in trained_model1.state_dict():
-            parameters1.append(trained_model1.state_dict()[key])
-        for key in trained_model2.state_dict():
-            parameters2.append(trained_model2.state_dict()[key])
-        for dropout_rate_index in range(len(dropout_rates)):
-            dropout_rate = dropout_rates[dropout_rate_index]
-            # We set random (depending on dropout_rate) number of neurons to 0 in each layer
-            for layer_i in range(0, len(layers_width) - 2):
-                for neuron_i in range(len(neuron_probabilities[layer_i])):
-                    if neuron_probabilities[layer_i][neuron_i] < dropout_rate:
-                        # We change neuron_i from layer_i to an identity map which is equivalent to removing it
-                        parameters1[2*layer_i][neuron_i] = 0.0
-                        parameters1[2*layer_i+1][neuron_i] = 0.0
-                        parameters2[2*layer_i][neuron_i] = 0.0
-                        parameters2[2*layer_i+1][neuron_i] = 0.0
-            # Now we update the parameters of the network accordingly
-            modified_state_dict1 = {}
-            modified_state_dict2 = {}
-            for i, key in enumerate(trained_model1.state_dict()):
-                modified_state_dict1[key] = parameters1[i]
-            for i, key in enumerate(trained_model2.state_dict()):
-                modified_state_dict2[key] = parameters2[i]
-            trained_model1.load_state_dict(modified_state_dict1)
-            trained_model2.load_state_dict(modified_state_dict2)
-            accuracies[dropout_rate_index][0].append(TrainedNeuralNetwork(trained_model1, my_data, number_of_parameters,
-                                                                          epochs=0).main())
-            accuracies[dropout_rate_index][1].append(TrainedNeuralNetwork(trained_model2, my_data, number_of_parameters,
-                                                                          epochs=0).main())
-    # Initialize empty lists to store means and standard deviations
-    means_function1 = []
-    std_dev_function1 = []
-    means_function2 = []
-    std_dev_function2 = []
-    # Calculate means and standard deviations for each sublist
-    for sublist in accuracies:
-        function1_values = sublist[0]
-        function2_values = sublist[1]
-        mean_function1 = np.mean(function1_values)
-        std_deviation_function1 = np.std(function1_values)
-        mean_function2 = np.mean(function2_values)
-        std_deviation_function2 = np.std(function2_values)
-        means_function1.append(mean_function1)
-        std_dev_function1.append(std_deviation_function1)
-        means_function2.append(mean_function2)
-        std_dev_function2.append(std_deviation_function2)
-    # Create a figure
-    plt.figure(figsize=(10, 6))
-    # Plot the means of function 1 with error bars representing the standard deviations
-    plt.errorbar(dropout_rates, means_function1, yerr=std_dev_function1, label='Function 1', marker='o', linestyle='-',
-                 capsize=5)
-    # Plot the means of function 2 with error bars representing the standard deviations
-    plt.errorbar(dropout_rates, means_function2, yerr=std_dev_function2, label='Function 2', marker='s', linestyle='--',
-                 capsize=5)
-    # Add labels and legend
-    plt.xlabel('Dropout rate')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    # Show the plot
-    plt.grid(True)
+    # For fairness make sure both networks have the same initialisation
+    torch.manual_seed(random.randint(1, int(math.pow(2, 32)) - 1))
+    my_model1 = TrainedNeuralNetwork(ReLUNeuralNetwork(layers_width, initialization='xavier'), my_data,
+                                     number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3, opt='ADAM',
+                                     mode=dataset)
+    trained_model1 = my_model1.main()
+    my_model2 = TrainedNeuralNetwork(DropoutReLUNeuralNetwork(layers_width, initialization='xavier', dropout_prob=0.2),
+                                     my_data, number_of_parameters, epochs=number_of_epochs, wd=1e-4, lr=1e-3,
+                                     opt='ADAM', mode=dataset)
+    trained_model2 = my_model2.main()
+    # Run SkelEx on the two networks
+    percentages, skeletons1, skeletons2 = [], [], []
+    for hidden_layer_index in range(len(layers_width) - 2):
+        number_of_neurons = layers_width[hidden_layer_index+1]
+        hidden_layer_percentages = [(x+1) / number_of_neurons for x in range(number_of_neurons)]
+        random.shuffle(hidden_layer_percentages)
+        percentages.append(hidden_layer_percentages)
+    print(percentages)
+    for dropout_rate_index in range(len(dropout_rates)):
+        dropout_rate = dropout_rates[dropout_rate_index]
+        t0 = time()
+        skelex1 = SkelEx(trained_model1.parameters(), global_point_bank, hyperrectangle, dropout=dropout_rate)
+        try:
+            skeletons1.append(skelex1.main(percentages))
+            print("SkelEx finished within " + str(time()-t0) + " seconds when dropout was not used.")
+        except:
+            skeletons1.append(None)
+            print('Lost one measurement due to error.')
+        t0 = time()
+        skelex2 = SkelEx(trained_model2.parameters(), global_point_bank, hyperrectangle, dropout=dropout_rate)
+        try:
+            skeletons2.append(skelex2.main(percentages))
+            print("SkelEx finished within " + str(time() - t0) + " seconds when dropout was used.")
+        except:
+            skeletons2.append(None)
+            print('Lost one measurement due to error.')
+    # Run BoundEx
+    fig, axs = plt.subplots(4, len(dropout_rates), figsize=(24, 8))
+    for i in range(len(skeletons1)):
+        # Visualize results
+        for r in range(4):
+            axs[r, i].set_aspect(1)
+            axs[r, i].set_xlim(hyperrectangle.x)
+            axs[r, i].set_ylim(hyperrectangle.y)
+            axs[r, i].set_xlabel(r'$x_1$', labelpad=2)
+            axs[r, i].set_ylabel(r'$x_2$', labelpad=2)
+        visualizer1 = Visualizer(skeletons1[i], trained_model1, hyperrectangle, number_of_classes)
+        visualizer2 = Visualizer(skeletons2[i], trained_model2, hyperrectangle, number_of_classes)
+        if skeletons1[i] is not None:
+            boundary_extractor1 = BoundEx(skeletons1[i], hyperrectangle)
+            classification_polygons1, lines_used1 = \
+                boundary_extractor1.extract_decision_boundary_from_skeletons_of_decision_functions()
+            print(f'The decision boundary when dropout is not used is created via {len(lines_used1)} line segments.')
+        if skeletons2[i] is not None:
+            boundary_extractor2 = BoundEx(skeletons2[i], hyperrectangle)
+            classification_polygons2, lines_used2 = \
+                boundary_extractor2.extract_decision_boundary_from_skeletons_of_decision_functions()
+            print(f'The decision boundary when dropout is used is created via {len(lines_used2)} line segments.')
+        try:
+            visualizer1.plot_skeleton(None, axs[0, i])
+        except:
+            pass
+        try:
+            visualizer1.plot_decision_boundary(boundary_extractor1, classification_polygons1, lines_used1, axs[1, i],
+                                               save=True)
+        except:
+            pass
+        try:
+            visualizer2.plot_skeleton(None, axs[2, i])
+        except:
+            pass
+        try:
+            visualizer2.plot_decision_boundary(boundary_extractor2, classification_polygons2, lines_used2, axs[3, i],
+                                               save=True)
+        except:
+            pass
     plt.show()
-    print('Done!')

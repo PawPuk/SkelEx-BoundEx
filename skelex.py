@@ -55,11 +55,10 @@ class SkelEx:
                           point_bank: Dict[Tuple[float, float], float], critical_point_creation_index: float,
                           percentages, error=1e-5) -> List[Skeleton]:
         skeletons = []  # list containing skeleton of each neuron (n_l in total)
-        w_i = percentages
         for n2_index in range(len(b)):  # go through each neuron
             # print(f'|  Neuron {n2_index + 1}')
             index = 0  # Look for the first non-zero weight
-            while index < len(w[n2_index]) and w_i[index] < self.dropout:
+            while index < len(w[n2_index]) and percentages[index] < self.dropout:
                 index += 1
             if index == len(w[n2_index]):
                 R = act[0].hyperrectangle
@@ -73,7 +72,7 @@ class SkelEx:
                 current_skeleton = deepcopy(act[index])  # take the first neuron from previous layer
                 current_skeleton *= w[n2_index][index]
                 for n1_index in range(index + 1, len(act)):
-                    if w_i[index] >= self.dropout:
+                    if percentages[n1_index] >= self.dropout:
                         # add together all the neurons from previous layer that have big enough weight
                         skeleton = deepcopy(act[n1_index])
                         skeleton *= w[n2_index][n1_index]
