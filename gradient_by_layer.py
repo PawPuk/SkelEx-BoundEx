@@ -7,6 +7,7 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 import tqdm
 import statistics
+import math
 
 
 # Define a simple feedforward neural network with ReLU activations for CIFAR-10
@@ -15,9 +16,28 @@ class SimpleNN(nn.Module):
         super(SimpleNN, self).__init__()
         self.fc1 = nn.Linear(3 * 32 * 32, 3072)
         self.relu = nn.ReLU()
+        self.fc2 = nn.Linear(3072, 3072)
+        self.fc3 = nn.Linear(3072, 3072)
+        self.fc5 = nn.Linear(3072, 10)  # 10 output classes for CIFAR-10
+
+    def forward(self, x):
+        x = x.view(-1, 3 * 32 * 32)  # Flatten the input
+        x = self.relu(self.fc1(x))
+        x = self.relu(self.fc2(x))
+        x = self.relu(self.fc3(x))
+        x = self.fc5(x)
+        return x
+
+
+class SimpleDropoutNN(nn.Module):
+    def __init__(self):
+        super(SimpleDropoutNN, self).__init__()
+        self.fc1 = nn.Linear(3 * 32 * 32, 3072)
+        self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.5)  # Add dropout with 50% probability
         self.fc2 = nn.Linear(3072, 3072)
         self.fc3 = nn.Linear(3072, 3072)
+        self.fc4 = nn.Linear(3072, 3072)
         self.fc5 = nn.Linear(3072, 10)  # 10 output classes for CIFAR-10
 
     def forward(self, x):
@@ -27,43 +47,20 @@ class SimpleNN(nn.Module):
         x = self.relu(self.fc2(x))
         x = self.dropout(x)
         x = self.relu(self.fc3(x))
+        x = self.dropout(x)
+        x = self.relu(self.fc4(x))
         x = self.fc5(x)
         return x
 
 
-# Training loop with learning rate schedule
-if __name__ == '__main__':
-    # Define data transformations and load the CIFAR-10 dataset with data augmentation
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    ])
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, transform=transform_train, download=True)
-    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, transform=transform_test)
-    # Create data loaders with batch normalization
-    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
-    test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False, num_workers=2)
-    # Initialize the network, optimizer (with learning rate schedule), and loss function
-    net = SimpleNN()
-    optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-    scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[150, 500], gamma=0.1)
-    criterion = nn.CrossEntropyLoss()
-    norms = [[], [], [], []]
-    # Lists to store loss and accuracy values
-    loss_values = []
-    accuracy_values = []
-    # Training loop
-    for epoch in tqdm.tqdm(range(600), desc='Epoch'):
+def train_and_test(net, optimizer, scheduler, criterion):
+    for epoch in tqdm.tqdm(range(1000), desc='Epoch'):
+        """if epoch % 20 == 0:
+            estimate_number_of_activation_regions(net)"""
         net.train()
         running_loss = 0.0
         for i, data in enumerate(train_loader, 0):
-            inputs, labels = data
+            inputs, labels = data[0].to(device), data[1].to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
             loss = criterion(outputs, labels)
@@ -90,7 +87,7 @@ if __name__ == '__main__':
         total = 0
         with torch.no_grad():
             for data in test_loader:
-                images, labels = data
+                images, labels = data[0].to(device), data[1].to(device)
                 outputs = net(images)
                 _, predicted = torch.max(outputs.data, 1)
                 total += labels.size(0)
@@ -99,6 +96,66 @@ if __name__ == '__main__':
         # Append loss and accuracy values to the lists
         loss_values.append(running_loss / (i + 1))
         accuracy_values.append(accuracy)
+
+
+def estimate_number_of_activation_regions(network):
+    activation_regions = {}
+
+    def hook_fn(module, input, output):
+        activations.append(output)
+    # Register a hook for each hidden layer (modify as needed)
+    for layer in network.children():
+        if isinstance(layer, torch.nn.Linear):
+            layer.register_forward_hook(hook_fn)
+    for _ in tqdm.tqdm(range(int(math.pow(10, 6))), desc='Data samples'):
+        data_sample = torch.randn(1, 3 * 32 * 32).to(device)
+        # Extract intermediate activations from hidden layers
+        activations = []
+        # Forward pass to trigger the hooks
+        output = network(data_sample)
+        # Apply threshold to determine active neurons for each hidden layer
+        threshold = 0
+        hidden_activations = activations[:-1]  # Exclude the output layer
+        key = tuple([act > threshold for act in hidden_activations][0].tolist()[0])
+        activation_regions[key] = activation_regions.get(key, 0) + 1
+    return len(activation_regions.keys())
+
+
+# Training loop with learning rate schedule
+if __name__ == '__main__':
+    device = torch.device("mps")
+    # Define data transformations and load the CIFAR-10 dataset with data augmentation
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    ])
+    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, transform=transform_train, download=True)
+    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, transform=transform_test)
+    # Create data loaders with batch normalization
+    train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
+    test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False, num_workers=2)
+    norms = [[], [], [], [], []]
+    loss_values = []
+    accuracy_values = []
+    # Initialize the network, optimizer (with learning rate schedule), and loss function
+    net1 = SimpleNN().to(device)
+    optimizer1 = optim.SGD(net1.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler1 = optim.lr_scheduler.MultiStepLR(optimizer1, milestones=[100, 700], gamma=0.1)
+    criterion1 = nn.CrossEntropyLoss()
+    train_and_test(net1, optimizer1, scheduler1, criterion1)
+    # Transform the learned parameters to the network with dropout
+    net2 = SimpleDropoutNN().to(device)
+    net2.load_state_dict(net1.state_dict())
+    optimizer2 = optim.SGD(net2.parameters(), lr=0.005, momentum=0.9, weight_decay=5e-4)
+    scheduler2 = optim.lr_scheduler.MultiStepLR(optimizer2, milestones=[400, 800], gamma=0.1)
+    criterion2 = nn.CrossEntropyLoss()
+    train_and_test(net2, optimizer2, scheduler2, criterion2)
     print("Finished Training")
     loss_values1 = [statistics.mean(loss_values[i:i + 5]) for i in range(0, len(loss_values), 5)]
     loss_values2 = [statistics.mean(loss_values[i:i + 25]) for i in range(0, len(loss_values), 25)]
@@ -110,11 +167,12 @@ if __name__ == '__main__':
         norms2.append([statistics.mean(norms[j][i:i + 25]) for i in range(0, len(norms[j]), 25)])
 
     # Labels for plotting
-    labels = ['Parameters of layer 1', 'Parameters of layer 2', 'Parameters of layer 3', 'Parameters of output layer']
+    labels = ['Parameters of layer 1', 'Parameters of layer 2', 'Parameters of layer 3', 'Parameters of layer 4',
+              'Parameters of output layer']
     # Create a figure and axis for norms plot
     fig, ax = plt.subplots(1, 2, figsize=(16, 6))
     # Norms plot
-    for i in range(4):
+    for i in range(len(norms1)):
         ax[0].plot(norms1[i], label=labels[i])
     ax[0].set_xlabel(r'Epoch ($\times$ 5)')
     ax[0].set_ylabel('Gradient Norm')
@@ -131,13 +189,13 @@ if __name__ == '__main__':
     ax[1].set_title('Loss and Accuracy Plot')
     ax[1].grid()
     # Show and save the combined figure
-    plt.savefig('Training_Results3.svg')
-    plt.savefig('Training_Results3.png')
+    plt.savefig('SM_Training_Results1_Continuation.svg')
+    plt.savefig('SM_Training_Results1_Continuation.png')
 
     # Create a figure and axis for norms plot
     fig1, ax1 = plt.subplots(1, 2, figsize=(16, 6))
     # Norms plot
-    for i in range(4):
+    for i in range(len(norms2)):
         ax1[0].plot(norms2[i], label=labels[i])
     ax1[0].set_xlabel(r'Epoch ($\times$ 25)')
     ax1[0].set_ylabel('Gradient Norm')
@@ -154,6 +212,6 @@ if __name__ == '__main__':
     ax1[1].set_title('Loss and Accuracy Plot')
     ax1[1].grid()
     # Show and save the combined figure
-    plt.savefig('Training_Results4.svg')
-    plt.savefig('Training_Results4.png')
+    plt.savefig('SM_Training_Results2_Continuation.svg')
+    plt.savefig('SM_Training_Results2_Continuation.png')
     plt.show()
