@@ -14,14 +14,14 @@ import math
 class SimpleNN(nn.Module):
     def __init__(self):
         super(SimpleNN, self).__init__()
-        self.fc1 = nn.Linear(3 * 32 * 32, 3072)
+        self.fc1 = nn.Linear(28*28, 98)
         self.relu = nn.ReLU()
-        self.fc2 = nn.Linear(3072, 3072)
-        self.fc3 = nn.Linear(3072, 3072)
-        self.fc5 = nn.Linear(3072, 10)  # 10 output classes for CIFAR-10
+        self.fc2 = nn.Linear(98, 98)
+        self.fc3 = nn.Linear(98, 98)
+        self.fc5 = nn.Linear(98, 10)  # 10 output classes for CIFAR-10
 
     def forward(self, x):
-        x = x.view(-1, 3 * 32 * 32)  # Flatten the input
+        x = x.view(-1, 28*28)  # Flatten the input
         x = self.relu(self.fc1(x))
         x = self.relu(self.fc2(x))
         x = self.relu(self.fc3(x))
@@ -32,31 +32,26 @@ class SimpleNN(nn.Module):
 class SimpleDropoutNN(nn.Module):
     def __init__(self):
         super(SimpleDropoutNN, self).__init__()
-        self.fc1 = nn.Linear(3 * 32 * 32, 3072)
+        self.fc1 = nn.Linear(28*28, 98)
         self.relu = nn.ReLU()
         self.dropout = nn.Dropout(0.5)  # Add dropout with 50% probability
-        self.fc2 = nn.Linear(3072, 3072)
-        self.fc3 = nn.Linear(3072, 3072)
-        self.fc4 = nn.Linear(3072, 3072)
-        self.fc5 = nn.Linear(3072, 10)  # 10 output classes for CIFAR-10
+        self.fc2 = nn.Linear(98, 98)
+        self.fc3 = nn.Linear(98, 98)
+        self.fc5 = nn.Linear(98, 10)  # 10 output classes for CIFAR-10
 
     def forward(self, x):
-        x = x.view(-1, 3 * 32 * 32)  # Flatten the input
+        x = x.view(-1, 28*28)  # Flatten the input
         x = self.relu(self.fc1(x))
         x = self.dropout(x)
         x = self.relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.relu(self.fc3(x))
-        x = self.dropout(x)
-        x = self.relu(self.fc4(x))
         x = self.fc5(x)
         return x
 
 
 def train_and_test(net, optimizer, scheduler, criterion):
-    for epoch in tqdm.tqdm(range(1000), desc='Epoch'):
-        """if epoch % 20 == 0:
-            estimate_number_of_activation_regions(net)"""
+    for epoch in tqdm.tqdm(range(200), desc='Epoch'):
+        if epoch % 20 == 0:
+            estimate_number_of_activation_regions(net)
         net.train()
         running_loss = 0.0
         for i, data in enumerate(train_loader, 0):
@@ -100,6 +95,7 @@ def train_and_test(net, optimizer, scheduler, criterion):
 
 def estimate_number_of_activation_regions(network):
     activation_regions = {}
+    network.to('cpu')
 
     def hook_fn(module, input, output):
         activations.append(output)
@@ -107,8 +103,8 @@ def estimate_number_of_activation_regions(network):
     for layer in network.children():
         if isinstance(layer, torch.nn.Linear):
             layer.register_forward_hook(hook_fn)
-    for _ in tqdm.tqdm(range(int(math.pow(10, 6))), desc='Data samples'):
-        data_sample = torch.randn(1, 3 * 32 * 32).to(device)
+    for _ in tqdm.tqdm(range(int(math.pow(10, 7))), desc='Data samples'):
+        data_sample = torch.randn(1, 28*28)
         # Extract intermediate activations from hidden layers
         activations = []
         # Forward pass to trigger the hooks
@@ -118,53 +114,56 @@ def estimate_number_of_activation_regions(network):
         hidden_activations = activations[:-1]  # Exclude the output layer
         key = tuple([act > threshold for act in hidden_activations][0].tolist()[0])
         activation_regions[key] = activation_regions.get(key, 0) + 1
+    print(len(activation_regions.keys()))
+    network.to('mps')
+    print(len(123))
     return len(activation_regions.keys())
 
 
 # Training loop with learning rate schedule
 if __name__ == '__main__':
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("mps")
-    # Define data transformations and load the CIFAR-10 dataset with data augmentation
+    # Define data transformations and load the Fashion MNIST dataset
     transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize((0.5,), (0.5,))
     ])
     transform_test = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        transforms.Normalize((0.5,), (0.5,))
     ])
-    train_dataset = torchvision.datasets.CIFAR10(root='./data', train=True, transform=transform_train, download=True)
-    test_dataset = torchvision.datasets.CIFAR10(root='./data', train=False, transform=transform_test)
-    # Create data loaders with batch normalization
+    train_dataset = torchvision.datasets.FashionMNIST(root='./data', train=True, transform=transform_train,
+                                                      download=True)
+    test_dataset = torchvision.datasets.FashionMNIST(root='./data', train=False, transform=transform_test)
     train_loader = DataLoader(train_dataset, batch_size=128, shuffle=True, num_workers=2)
     test_loader = DataLoader(test_dataset, batch_size=100, shuffle=False, num_workers=2)
     norms = [[], [], [], [], []]
     loss_values = []
     accuracy_values = []
     # Initialize the network, optimizer (with learning rate schedule), and loss function
-    net1 = SimpleNN().to(device)
+    net1 = SimpleDropoutNN().to(device)
     optimizer1 = optim.SGD(net1.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
-    scheduler1 = optim.lr_scheduler.MultiStepLR(optimizer1, milestones=[100, 700], gamma=0.1)
+    scheduler1 = optim.lr_scheduler.MultiStepLR(optimizer1, milestones=[50], gamma=0.1)
     criterion1 = nn.CrossEntropyLoss()
     train_and_test(net1, optimizer1, scheduler1, criterion1)
-    # Transform the learned parameters to the network with dropout
+    """# Transform the learned parameters to the network with dropout
     net2 = SimpleDropoutNN().to(device)
     net2.load_state_dict(net1.state_dict())
-    optimizer2 = optim.SGD(net2.parameters(), lr=0.005, momentum=0.9, weight_decay=5e-4)
-    scheduler2 = optim.lr_scheduler.MultiStepLR(optimizer2, milestones=[400, 800], gamma=0.1)
+    optimizer2 = optim.SGD(net2.parameters(), lr=0.01, momentum=0.9, weight_decay=5e-4)
+    scheduler2 = optim.lr_scheduler.MultiStepLR(optimizer2, milestones=[200], gamma=0.1)
     criterion2 = nn.CrossEntropyLoss()
-    train_and_test(net2, optimizer2, scheduler2, criterion2)
+    train_and_test(net2, optimizer2, scheduler2, criterion2)"""
     print("Finished Training")
-    loss_values1 = [statistics.mean(loss_values[i:i + 5]) for i in range(0, len(loss_values), 5)]
-    loss_values2 = [statistics.mean(loss_values[i:i + 25]) for i in range(0, len(loss_values), 25)]
-    accuracy_values1 = [statistics.mean(accuracy_values[i:i + 5]) for i in range(0, len(accuracy_values), 5)]
-    accuracy_values2 = [statistics.mean(accuracy_values[i:i + 25]) for i in range(0, len(accuracy_values), 25)]
+    s1, s2 = 5, 10
+    loss_values1 = [statistics.mean(loss_values[i:i + s1]) for i in range(0, len(loss_values), s1)]
+    loss_values2 = [statistics.mean(loss_values[i:i + s2]) for i in range(0, len(loss_values), s2)]
+    accuracy_values1 = [statistics.mean(accuracy_values[i:i + s1]) for i in range(0, len(accuracy_values), s1)]
+    accuracy_values2 = [statistics.mean(accuracy_values[i:i + s2]) for i in range(0, len(accuracy_values), s2)]
     norms1, norms2 = [], []
     for j in range(len(norms)):
-        norms1.append([statistics.mean(norms[j][i:i + 5]) for i in range(0, len(norms[j]), 5)])
-        norms2.append([statistics.mean(norms[j][i:i + 25]) for i in range(0, len(norms[j]), 25)])
+        norms1.append([statistics.mean(norms[j][i:i + s1]) for i in range(0, len(norms[j]), s1)])
+        norms2.append([statistics.mean(norms[j][i:i + s2]) for i in range(0, len(norms[j]), s2)])
 
     # Labels for plotting
     labels = ['Parameters of layer 1', 'Parameters of layer 2', 'Parameters of layer 3', 'Parameters of layer 4',
@@ -174,14 +173,14 @@ if __name__ == '__main__':
     # Norms plot
     for i in range(len(norms1)):
         ax[0].plot(norms1[i], label=labels[i])
-    ax[0].set_xlabel(r'Epoch ($\times$ 5)')
+    ax[0].set_xlabel(r'Epoch ($\times$ {s1})')
     ax[0].set_ylabel('Gradient Norm')
     ax[0].set_title('Combined Plot of Norms')
     ax[0].legend()
     ax[0].grid()
     # Loss and accuracy plot
     ax[1].plot(loss_values1, label='Loss', color='b')
-    ax[1].set_xlabel(r'Epoch ($\times$ 5)')
+    ax[1].set_xlabel(r'Epoch ($\times$ {s1})')
     ax[1].set_ylabel('Loss', color='b')  # Set the y-axis label for loss
     ax2 = ax[1].twinx()
     ax2.plot(accuracy_values1, label='Accuracy', color='r')
@@ -197,14 +196,14 @@ if __name__ == '__main__':
     # Norms plot
     for i in range(len(norms2)):
         ax1[0].plot(norms2[i], label=labels[i])
-    ax1[0].set_xlabel(r'Epoch ($\times$ 25)')
+    ax1[0].set_xlabel(r'Epoch ($\times$ {s2})')
     ax1[0].set_ylabel('Gradient Norm')
     ax[0].set_title('Combined Plot of Norms')
     ax1[0].legend()
     ax1[0].grid()
     # Loss and accuracy plot
     ax1[1].plot(loss_values2, label='Loss', color='b')
-    ax1[1].set_xlabel(r'Epoch ($\times$ 25)')
+    ax1[1].set_xlabel(r'Epoch ($\times$ {s2})')
     ax1[1].set_ylabel('Loss', color='b')  # Set the y-axis label for loss
     ax3 = ax1[1].twinx()
     ax3.plot(accuracy_values2, label='Accuracy', color='r')

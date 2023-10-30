@@ -65,8 +65,8 @@ class TrainedNeuralNetwork:
                     correct += (pred.argmax(1).unsqueeze(1) == y).sum().item()
         test_loss /= num_batches
         correct /= size
-        return correct*100
         # print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+        return correct*100
 
     def main(self):
         train_dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
@@ -84,7 +84,7 @@ class TrainedNeuralNetwork:
                 # print(f"Epoch {t+1}\n-------------------------------")
                 self.train(train_dataloader, model, optimizer)
                 self.test(test_dataloader, model)
-            print("Done!")
+            # print("Done!")
         else:
             return self.test(test_dataloader, model)
         return model
