@@ -20,7 +20,7 @@ if __name__ == '__main__':
     number_of_parameters = 2
     layers_width = [number_of_parameters, 10, 10, number_of_classes]
     data_size = 1000
-    number_of_epochs = 15
+    number_of_epochs = 25
     # You probably don't want to change those
     train = False
     create_figure_for_the_dataset = False

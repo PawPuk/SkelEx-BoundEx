@@ -23,8 +23,8 @@ class SkelEx:
 
     def calculate_pre_activations(self, w: List[List[float]], b: List[float], R: Hyperrectangle,
                                   point_bank: Dict[Tuple[float, float], float]) -> List[Skeleton]:
-        """ Given the bounding hyperrectangle, and the learned weights and biases extracts skeletons of the pre-activations
-        of the first hidden layer
+        """ Given the bounding hyperrectangle, and the learned weights and biases extracts skeletons of the
+        pre-activations of the first hidden layer
 
         @param w: learned weights
         @param b: learned biases
@@ -33,17 +33,19 @@ class SkelEx:
         @return: n_1 skeletons, each representing the critical points of the pre-activations of the first hidden layer
         """
         skeletons = []
+        # Iterate through neurons of the first hidden layer
         for neuron_index in range(len(w)):
             values = {}
-            # Create vertex for each corner of R
+            # Create vertex for each corner of R ...
             tl = (R.x[0], R.y[1])
             tr = (R.x[1], R.y[1])
             br = (R.x[1], R.y[0])
             bl = (R.x[0], R.y[0])
-            for v in [tl, tr, br, bl]:  # and calculate their values
+            # ... and calculate their values
+            for v in [tl, tr, br, bl]:
                 values[v] = w[neuron_index][0] * v[0] + w[neuron_index][1] * v[1] + b[neuron_index]
-                values[v] = self.quantize_to_0(values[v])
-                point_bank[v] = 0.5
+                values[v] = self.quantize_to_0(values[v])  # We need this due to limited floating point precision
+                point_bank[v] = 1
             g = [self.quantize_to_0(v) for v in w[neuron_index]]
             # Convert to NewSkeleton class and pass to the list
             skeletons.append(Skeleton([LinearRegion(Polygon([tl, tr, br, bl]), g)], R, values))
@@ -59,7 +61,7 @@ class SkelEx:
             w_i = 0  # Look for the first non-zero weight
             while w_i < len(w[n2_index]) and -error < w[n2_index][w_i] < error:
                 w_i += 1
-            if w_i == len(w[n2_index]):
+            if w_i == len(w[n2_index]):  # all weights are equal to 0, or close enough to 0 to think of them as 0
                 R = act[0].hyperrectangle
                 tl = (R.x[0], R.y[1])
                 tr = (R.x[1], R.y[1])
@@ -68,10 +70,10 @@ class SkelEx:
                 values = {tl: 0, tr: 0, br: 0, bl: 0}
                 current_skeleton = Skeleton([LinearRegion(Polygon([tl, tr, br, bl]), [0, 0])], R, values)
             else:
-                current_skeleton = deepcopy(act[w_i])  # take the first neuron from previous layer
+                current_skeleton = deepcopy(act[w_i])  # take the first neuron from previous layer with non-zero weight
                 current_skeleton *= w[n2_index][w_i]
                 for n1_index in range(w_i + 1, len(act)):
-                    if not -1e-5 < w[n2_index][n1_index] < 1e-5:
+                    if not -error < w[n2_index][n1_index] < error:
                         # add together all the neurons from previous layer that have big enough weight
                         skeleton = deepcopy(act[n1_index])
                         skeleton *= w[n2_index][n1_index]
@@ -100,12 +102,12 @@ class SkelEx:
             activations = []
             for pre_activation_index in range(len(pre_activations)):
                 pre_activation = pre_activations[pre_activation_index]
-                activation = pre_activation.relu(self.point_bank, layer_index)
+                activation = pre_activation.relu(self.point_bank, layer_index+0.5)
                 activations.append(activation)
             print(f'|Layer {layer_index + 1}')
             pre_activations = self.merge_activations(activations, self.parameters[2 * layer_index].data.tolist(),
                                                      self.parameters[2 * layer_index + 1].data.tolist(),
-                                                     self.point_bank, layer_index + 0.5)
+                                                     self.point_bank, layer_index + 1)
         for skeleton in pre_activations:
             skeleton.test_validity()
         print(
