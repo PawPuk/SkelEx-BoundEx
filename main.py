@@ -80,7 +80,7 @@ if __name__ == '__main__':
                 # Assuming that weights and biases are associated with the same layer
                 network_weights.append((weights, biases))
 
-        def forward_pass(x, network_weights):
+        """def forward_pass(x, network_weights):
             activations1 = [x]
             preactivations1 = []
 
@@ -108,7 +108,7 @@ if __name__ == '__main__':
         print()
         print(activations)
         print()
-        print(trained_model(torch.tensor([[-1.0, -0.2]])))
+        print(trained_model(torch.tensor([[-1.0, -0.2]])))"""
         # Load skeleton if SkelEx was already run. Run SkelEx otherwise
         if os.path.isfile('skeletons.pkl') and not train:
             with open('skeletons.pkl', 'rb') as f:

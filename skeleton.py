@@ -132,6 +132,12 @@ class Skeleton:
                 ax.plot(x, y, color='blue', alpha=0.7, linewidth=3, solid_capstyle='round', zorder=2)
                 ax.scatter(*point, color='red', s=50, zorder=3)
                 plt.show()"""
+        fig, ax = plt.subplots()
+        for ar in skeleton.linear_regions:
+            x, y = ar.polygon.exterior.xy
+            ax.plot(x, y, color='blue', alpha=0.7, linewidth=3, solid_capstyle='round', zorder=2)
+        ax.scatter(*point, color='red', s=50, zorder=3)
+        plt.show()
         raise Exception  # activation regions tessellate the input space so the if statement should always be executed
 
     def update_values(self, intersection: Polygon, skeleton2: "Skeleton", new_skeleton: "Skeleton"):
@@ -142,8 +148,8 @@ class Skeleton:
         :param new_skeleton: Current result of summing self with skeleton2
         """
         xx, yy = intersection.exterior.coords.xy
-        v = 0
         for i in range(1, len(xx)):
+            v = 0
             p = (xx[i], yy[i])
             if p in self.values:
                 v += self.values[p]
@@ -338,6 +344,8 @@ class Skeleton:
             ax.set_ylim(-2, 2)
             plt.gca().set_aspect('equal', adjustable='box')
             plt.grid()"""
+        self.test_validity(global_point_bank)
+        skeleton2.test_validity(global_point_bank)
         for lr in self.linear_regions:
             for lr1 in skeleton2.linear_regions:
                 # go through all linear regions from skeleton1 and self. For every pair find their intersection
@@ -416,6 +424,24 @@ class Skeleton:
             print(len(skeleton2.linear_regions))
             print(len(new_skeleton.linear_regions))
             plt.show()"""
+        """print('---------------------------------------------------------------------------------')
+        for skeleton in [self, skeleton2, new_skeleton]:
+            for lr in skeleton.linear_regions:
+                print('gradient - ', lr.gradient)
+                xx, yy = lr.polygon.exterior.coords.xy
+                for i in range(len(xx)):
+                    print(xx[i], yy[i], skeleton.values[(xx[i], yy[i])])
+            print()
+            print('MOVING TO THE NEXT SKELETON')
+            print()
+        print('---------------------------------------------------------------------------------')
+        fig, ax = plt.subplots()
+        for lr in new_skeleton.linear_regions:
+            xx, yy = lr.polygon.exterior.coords.xy
+            ax.set_aspect('equal')
+            ax.set_title('Shapely Polygon')
+            ax.plot(xx, yy)
+        plt.show()"""
         new_skeleton.test_validity(global_point_bank)
         return new_skeleton
 
@@ -617,12 +643,11 @@ class Skeleton:
 
                 # Show the plots
                 plt.show()"""
-            print('testing', test_index, 'out of', len(skeleton_to_test.linear_regions) - 1)
             xx, yy = lr.polygon.exterior.coords.xy
             gradient = lr.gradient
             for i in range(1, len(xx)):
-                if skeleton_to_test.values[(xx[i], yy[i])] != skeleton_to_test.values[(xx[i-1], yy[i-1])] + \
-                        (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1]:
+                if abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i-1], yy[i-1])] +
+                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])) > 1e-14:
                     print("-----------------------------------------------------")
                     print(i, skeleton_to_test.values[(xx[i], yy[i])], skeleton_to_test.values[(xx[i-1], yy[i-1])] +
                           (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])
