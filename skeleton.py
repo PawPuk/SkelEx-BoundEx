@@ -135,8 +135,10 @@ class Skeleton:
         fig, ax = plt.subplots()
         for ar in skeleton.linear_regions:
             x, y = ar.polygon.exterior.xy
+            print(x, y)
             ax.plot(x, y, color='blue', alpha=0.7, linewidth=3, solid_capstyle='round', zorder=2)
         ax.scatter(*point, color='red', s=50, zorder=3)
+        print(point)
         plt.show()
         raise Exception  # activation regions tessellate the input space so the if statement should always be executed
 
@@ -209,8 +211,8 @@ class Skeleton:
                 # We check both conditions below, as 'a' can be 0 (1st condition holds) or inf (2nd condition holds)
                 if (min(p3[0], p4[0]) - epsilon <= p1[0] <= max(p3[0], p4[0]) + epsilon or
                     min(p3[0], p4[0]) - epsilon <= p2[0] <= max(p3[0], p4[0]) + epsilon) and \
-                        min(p3[1], p4[1]) - epsilon <= p1[1] <= max(p3[1], p4[1]) + epsilon or \
-                        min(p3[1], p4[1]) - epsilon <= p2[1] <= max(p3[1], p4[1]) + epsilon:
+                        (min(p3[1], p4[1]) - epsilon <= p1[1] <= max(p3[1], p4[1]) + epsilon or
+                         min(p3[1], p4[1]) - epsilon <= p2[1] <= max(p3[1], p4[1]) + epsilon):
                     # find endpoints of intersection (line segment)
                     x_start = max(min(p1[0], p2[0]), min(p3[0], p4[0]))
                     x_end = min(max(p1[0], p2[0]), max(p3[0], p4[0]))
@@ -243,8 +245,8 @@ class Skeleton:
         return None
 
     @staticmethod
-    def distance_to_segment(p: Tuple[float, float], seg_start: Tuple[float, float], seg_end: Tuple[float, float]):
-        x, y = p
+    def distance_to_segment(point: Tuple[float, float], seg_start: Tuple[float, float], seg_end: Tuple[float, float]):
+        x, y = point
         x1, y1 = seg_start
         x2, y2 = seg_end
         # Calculate the distance between point (x, y) and line segment (x1, y1)-(x2, y2)
@@ -261,7 +263,7 @@ class Skeleton:
             px, py = x1 + t * dx, y1 + t * dy
         return ((x - px) ** 2 + (y - py) ** 2) ** 0.5
 
-    def is_point_inside_polygon(self, point: Tuple[float, float], polygon: Polygon, epsilon=1e-16) -> bool:
+    def is_point_inside_polygon(self, point: Tuple[float, float], polygon: Polygon, epsilon=1e-15) -> bool:
         """We use the "crossing number" algorithm to find if point lies within polygon"""
         ray = (point[0] + 1e10, point[1])
         ray_intersections = 0
@@ -283,29 +285,45 @@ class Skeleton:
                           index: float) -> Union[Polygon, None]:
         xx1, yy1 = polygon1.exterior.coords.xy
         xx2, yy2 = polygon2.exterior.coords.xy
+        if index == 50:
+            print(polygon1)
         intersection_points = []
         # edges_intersect = False
         for i in range(1, len(xx2)):
             # If a point from polygon2 is inside polygon1 then it is part of their intersection
             p = (xx2[i], yy2[i])
             if self.is_point_inside_polygon(p, polygon1) and p not in intersection_points:
+                if index == 50:
+                    print('aaaaa', p, polygon1)
                 intersection_points.append(p)
+        if index == 50:
+            print(intersection_points)
         for i1 in range(1, len(xx1)):
             prev_p1 = (xx1[i1-1], yy1[i1-1])
             p1 = (xx1[i1], yy1[i1])
             # If a point P from polygon1 is inside polygon2 then it is part of their intersection ...
             if self.is_point_inside_polygon(p1, polygon2) and p1 not in intersection_points:
+                if index == 50:
+                    print('bbbbb', p1, polygon2)
                 intersection_points.append(p1)
             # ... So is the case if P lies on the edge (prev_p1, p1) that intersects any edge of polygon2
             for i2 in range(1, len(xx2)):
+                if index == 50:
+                    print('i2 = ', i2)
                 prev_p2 = (xx2[i2-1], yy2[i2-1])
                 p2 = (xx2[i2], yy2[i2])
                 edge_intersection = self.find_line_segment_intersection(prev_p1, p1, prev_p2, p2, point_bank, index)
+                if index == 50:
+                    print(edge_intersection)
                 if edge_intersection is not None:  # If len == 0 then there are no intersection
                     for p in edge_intersection:
                         if p not in intersection_points:  # make sure the point is not a vertex of the polygons
                             # edges_intersect = True
                             intersection_points.append(p)
+            if index == 50:
+                print('-------------------------------------------------------')
+        if index == 50:
+            print(intersection_points)
         if len(intersection_points) > 2:
             """if edges_intersect:
                 # This is definitely a valid intersection as the edges of polygons cross (non-parallel crossings)
@@ -350,49 +368,46 @@ class Skeleton:
             for lr1 in skeleton2.linear_regions:
                 # go through all linear regions from skeleton1 and self. For every pair find their intersection
                 intersection = self.find_intersection(lr.polygon, lr1.polygon, global_point_bank, index)
-                """# Plot the first polygon
-                plt.figure(1)
-                x1, y1 = lr.polygon.exterior.xy
-                plt.fill(x1, y1, facecolor='lightblue', edgecolor='blue', linewidth=2)
-                plt.title('Polygon 1')
-                plt.gca().set_aspect('equal', adjustable='box')
-                plt.grid()
-                plt.xlim(-2, 2)
-                plt.ylim(-2, 2)
-
-                # Plot the second polygon
-                plt.figure(2)
-                x2, y2 = lr1.polygon.exterior.xy
-                plt.fill(x2, y2, facecolor='lightgreen', edgecolor='green', linewidth=2)
-                plt.title('Polygon 2')
-                plt.gca().set_aspect('equal', adjustable='box')
-                plt.grid()
-                plt.xlim(-2, 2)
-                plt.ylim(-2, 2)
-
-                if intersection is not None:
-                    # Plot the third polygon
-                    plt.figure(3)
-                    x3, y3 = intersection.exterior.xy
-                    plt.fill(x3, y3, facecolor='lightcoral', edgecolor='red', linewidth=2)
-                    plt.title('Polygon 3')
+                if intersection is not None and intersection.difference(lr1.polygon.intersection(lr.polygon)).area > \
+                        1e-10:
+                    self.find_intersection(lr.polygon, lr1.polygon, global_point_bank, 50)
+                    # Plot the first polygon
+                    plt.figure(1)
+                    x1, y1 = lr.polygon.exterior.xy
+                    plt.fill(x1, y1, facecolor='lightblue', edgecolor='blue', linewidth=2)
+                    plt.title('Polygon 1')
                     plt.gca().set_aspect('equal', adjustable='box')
                     plt.grid()
                     plt.xlim(-2, 2)
                     plt.ylim(-2, 2)
-                else:
-                    print(None)
 
-                # Show all three figures
-                plt.show()"""
+                    # Plot the second polygon
+                    plt.figure(2)
+                    x2, y2 = lr1.polygon.exterior.xy
+                    plt.fill(x2, y2, facecolor='lightgreen', edgecolor='green', linewidth=2)
+                    plt.title('Polygon 2')
+                    plt.gca().set_aspect('equal', adjustable='box')
+                    plt.grid()
+                    plt.xlim(-2, 2)
+                    plt.ylim(-2, 2)
+
+                    if intersection is not None:
+                        # Plot the third polygon
+                        plt.figure(3)
+                        x3, y3 = intersection.exterior.xy
+                        plt.fill(x3, y3, facecolor='lightcoral', edgecolor='red', linewidth=2)
+                        plt.title('Polygon 3')
+                        plt.gca().set_aspect('equal', adjustable='box')
+                        plt.grid()
+                        plt.xlim(-2, 2)
+                        plt.ylim(-2, 2)
+                    else:
+                        print(None)
+
+                    # Show all three figures
+                    plt.show()
                 # proceed only if the intersection is non-empty and a polygon (area check discards buggy intersections)
                 if intersection is not None:
-                    """if index >= 1.5:
-                        print(intersection)
-                        # Plot each polygon in the list
-                        x, y = intersection.exterior.xy
-                        ax.fill(x, y, facecolor='lightblue', edgecolor='blue', linewidth=2)
-                        plt.pause(4)  # Pause for 10 seconds"""
                     gradient_of_intersection = [lr.gradient[i] + lr1.gradient[i] for i in range(2)]
                     new_skeleton.linear_regions.append(LinearRegion(intersection, gradient_of_intersection))
                     self.update_values(intersection, skeleton2, new_skeleton)
@@ -586,7 +601,7 @@ class Skeleton:
         gradient = skeleton_to_test.linear_regions[0].gradient
         for i in range(1, len(xx)):
             if abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i - 1], yy[i - 1])] +
-                   (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])) > 5e-15:
+                   (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])) > 1e-10:
                 print("-----------------------------------------------------")
                 print(i, skeleton_to_test.values[(xx[i], yy[i])], skeleton_to_test.values[(xx[i - 1], yy[i - 1])] +
                       (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])
@@ -647,10 +662,12 @@ class Skeleton:
             gradient = lr.gradient
             for i in range(1, len(xx)):
                 if abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i-1], yy[i-1])] +
-                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])) > 1e-14:
+                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])) > 1e-13:
                     print("-----------------------------------------------------")
                     print(i, skeleton_to_test.values[(xx[i], yy[i])], skeleton_to_test.values[(xx[i-1], yy[i-1])] +
-                          (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])
+                          (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1],
+                          abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i-1], yy[i-1])] +
+                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])))
                     print(lr.gradient)
                     for i1 in range(len(xx)):
                         print(xx[i1], yy[i1], skeleton_to_test.values[(xx[i1], yy[i1])])
