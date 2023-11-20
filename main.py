@@ -18,7 +18,7 @@ if __name__ == '__main__':
     # You probably want to change those
     number_of_classes = 2
     number_of_parameters = 2
-    layers_width = [number_of_parameters, 10, 10, number_of_classes]
+    layers_width = [number_of_parameters, 10, 10, 10, 10, 10, 10, 10, 10, number_of_classes]
     data_size = 1000
     number_of_epochs = 25
     # You probably don't want to change those
@@ -66,8 +66,6 @@ if __name__ == '__main__':
                                             mode=dataset)
             trained_model = my_model.main()
             torch.save(trained_model.state_dict(), "model.pth")
-
-
         network_weights = []
         # Iterate through the model's parameters and extract the weights and biases
         for name, param in trained_model.named_parameters():
