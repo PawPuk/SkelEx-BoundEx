@@ -1,9 +1,9 @@
-from typing import Dict, List, Tuple, Any
+from typing import Dict, List, Tuple, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
-from shapely.geometry import LineString, Point, Polygon
+from shapely.geometry import LineString, Point, Polygon, MultiPoint
 
 from dataset import Dataset2D
 from linear_region import LinearRegion
@@ -15,9 +15,9 @@ class BoundEx:
         self.hyperrectangle = hyperrectangle
 
     @staticmethod
-    def test_order_of_linear_regions(linear_regions: List[LinearRegion]):
-        """We know that all decision functions have the same skeleton (coordinate-wise). We want to assume that those
-        linear regions have been created in the same order. We check whether this is the case here.
+    def test_equality_of_variants(linear_regions: List[LinearRegion]):
+        """We want to verify if all variants of the linear region collected from different tessellations are equal as
+        they should be.
 
         @param linear_regions: list of linear regions (they all should be equal)
         """
@@ -28,8 +28,14 @@ class BoundEx:
                 raise ValueError(str(poly) + " is different than " + str(poly1))
 
     @staticmethod
-    def find_intersection(e1: Tuple[Tuple[float, float, float], Tuple[float, float, float]],
-                          e2: Tuple[Tuple[float, float, float], Tuple[float, float, float]]):
+    def find_line_segment_intersection(e1: Tuple[Tuple[float, float, float], Tuple[float, float, float]],
+                                       e2: Tuple[Tuple[float, float, float], Tuple[float, float, float]]):
+        """ Given two edges of a 3D shape find the intersection if it exists
+
+        :param e1: edge 1 as a tuple of (x, y, z) coordinates
+        :param e2: edge 2 as a tuple of (x, y, z) coordinates
+        :return: (x, y) of the intersection or None if no intersection
+        """
         x, y, z = (e1[0][0], e1[0][1], e1[0][2])
         x1, y1, z1 = (e1[1][0], e1[1][1], e1[1][2])
         zz = e2[0][2]
@@ -47,119 +53,105 @@ class BoundEx:
         return x + dx * solution[0], y + dy * solution[1]
 
     @staticmethod
-    def find_v1(intersection, edge):
-        if edge[0][0] != edge[1][0]:
-            t = (intersection[0] - edge[0][0]) / (edge[1][0] - edge[0][0])
-        else:
-            t = (intersection[1] - edge[0][1]) / (edge[1][1] - edge[0][1])
-        return edge[0][2] + t * (edge[1][2] - edge[0][2])
+    def calculate_value_of_point_in_polygon(point: Tuple[float, float], polygon: Polygon,
+                                            values: Dict[Tuple[float, float], float], gradient: Tuple[float, float]):
+        poly_x, poly_y = polygon.exterior.coords.xy
+        x, y, z = poly_x[0], poly_y[0], values[poly_x[0], poly_y[0]]
+        value = (point[0] - x) * gradient[0] + (point[1] - y) * gradient[1] + z
+        return value
 
-    def find_coordinates(self, start_values: List[float], end_values: List[float], start_p: Tuple[float, float],
-                         end_p: Tuple[float, float], points: Dict[int, List[Tuple[float, float]]]):
-        cma = self.argmax(start_values)  # current maximum argument
-        p1 = start_p
-        v1 = self.skeletons[cma].values[p1]
-        decisions = [cma]
-        while cma != self.argmax(end_values):
-            e1 = ((p1[0], p1[1], v1), (end_p[0], end_p[1], self.skeletons[cma].values[end_p]))
-            intersection = None
-            new_decision = -1  # TODO: should not be necessary
-            for i in [index for index in range(len(self.skeletons)) if index not in decisions]:
-                e2 = ((start_p[0], start_p[1], self.skeletons[i].values[start_p]),
-                      (end_p[0], end_p[1], self.skeletons[i].values[end_p]))
-                current_intersection = self.find_intersection(e1, e2)
-                # check if current_intersection lies on the edge e=(p1, p2)
-                if LineString([p1, end_p]).distance(Point(current_intersection)) < 1e-5:
-                    if intersection is None:
-                        intersection = current_intersection
-                        new_decision = i
-                    # check if current_intersection is closer to p1 than intersection
-                    elif Point(p1).distance(Point(current_intersection)) < Point(p1).distance(Point(intersection)):
-                        intersection = current_intersection
-                        new_decision = i
-            self.append_to_dictionary(points, cma, intersection)
-            self.append_to_dictionary(points, new_decision, intersection)
-            v1 = self.find_v1(intersection, e1)
-            p1 = intersection
-            cma = new_decision
-            decisions.append(new_decision)
-        return points
+    def find_polygon_intersection(self, subpolygon1: Polygon, polygon1: Polygon, polygon2: Polygon,
+                                  values1: Dict[Tuple[float, float], float], gradient1: Tuple[float, float],
+                                  values2: Dict[Tuple[float, float], float], gradient2: Tuple[float, float]) -> \
+            Union[Tuple[Polygon, Polygon], Tuple[Polygon, None], Tuple[None, Polygon]]:
+        """
 
-    @staticmethod
-    def append_to_dictionary(d, k, v):
-        if k in d:
-            d[k].append(v)
-        else:
-            d[k] = [v]
+        :param subpolygon1: subpolygon; this is where polygon1 had the highest value among the checked lr variants
+        :param polygon1: polygon of one of the earlier classes
+        :param polygon2: polygon (a new variant of current linear region)
+        :param values1: dictionary storing values of all vertices of polygon1
+        :param values2: dictionary storing values of all vertices of polygon2
+        :param gradient1: gradient of polygon1
+        :param gradient2: gradient of polygon2
+        :return:
+        """
 
-    @staticmethod
-    def argmax(l):
-        return max(enumerate(l), key=lambda x: x[1])[0]
+        xx1, yy1 = subpolygon1.exterior.coords.xy
+        subpolygon1_vertices, subpolygon2_vertices = [], []
+        for vertex_index in range(1, len(xx1)):
+            prev_zz1 = self.calculate_value_of_point_in_polygon((xx1[vertex_index - 1], yy1[vertex_index - 1]),
+                                                                polygon1, values1, gradient1)
+            prev_zz2 = self.calculate_value_of_point_in_polygon((xx1[vertex_index - 1], yy1[vertex_index - 1]),
+                                                                polygon2, values2, gradient2)
+            zz1 = self.calculate_value_of_point_in_polygon((xx1[vertex_index], yy1[vertex_index]), polygon1, values1,
+                                                           gradient1)
+            zz2 = self.calculate_value_of_point_in_polygon((xx1[vertex_index], yy1[vertex_index]), polygon2, values2,
+                                                           gradient2)
+            # Find which class (xx1[vertex_index], yy1[vertex_index]) belongs to
+            target_list = subpolygon2_vertices if zz1 < zz2 else subpolygon1_vertices
+            target_list.append((xx1[vertex_index], yy1[vertex_index]))
+            if zz1 == zz2:
+                subpolygon2_vertices.append((xx1[vertex_index], yy1[vertex_index]))
+            # Check if (xx1[vertex_index - 1], yy1[vertex_index - 1]) belongs to different class
+            if (prev_zz1 > prev_zz2 and zz1 < zz2) or (prev_zz1 < prev_zz2 and zz1 > zz2):
+                x_start, x_end = xx1[vertex_index - 1], xx1[vertex_index]
+                y_start, y_end = yy1[vertex_index - 1], yy1[vertex_index]
+                x, y = self.find_line_segment_intersection(((x_start, y_start, prev_zz1), (x_end, y_end, zz1)),
+                                                           ((x_start, y_start, prev_zz2), (x_end, y_end, zz2)))
+                subpolygon1_vertices.append((x, y))
+                subpolygon2_vertices.append((x, y))
+        subpolygon1 = Polygon(MultiPoint(subpolygon1_vertices).convex_hull) if len(subpolygon1_vertices) > 2 else None
+        subpolygon2 = Polygon(MultiPoint(subpolygon2_vertices).convex_hull) if len(subpolygon2_vertices) > 2 else None
+        return subpolygon1, subpolygon2
 
-    def extract_decision_boundary_from_skeletons_of_decision_functions(self):
-        # TODO: test this once again with hyperrectangle starting at 0
+    def boundex(self):
         classification_polygons = {}
         lines_used = []
+        # Iterate through all activation regions of the output tessellations
         for lr_index in range(len(self.skeletons[0].linear_regions)):
-            classification_points = {}
-            linear_region_variations = []
-            for skeleton_index in range(len(self.skeletons)):
-                linear_region_variations.append(self.skeletons[skeleton_index].linear_regions[lr_index])
-            self.test_order_of_linear_regions(linear_region_variations)
-            # find points where the decision changes and put them into decision dictionary
-            if linear_region_variations[0].polygon.interiors:
-                raise NotImplementedError
-
-            xx, yy = linear_region_variations[0].polygon.exterior.coords.xy
-            last_p = (xx[0], yy[0])
-            last_values = [self.skeletons[i].values[last_p] for i in range(len(self.skeletons))]
-            self.append_to_dictionary(classification_points, self.argmax(last_values), last_p)
-            for point_index in range(1, len(xx)):  # go through each point of the linear region
-                this_p = (xx[point_index], yy[point_index])
-                this_values = [self.skeletons[i].values[this_p] for i in range(len(self.skeletons))]
-                if self.argmax(last_values) != self.argmax(this_values):  # find edges on which decision changes
-                    self.find_coordinates(last_values, this_values, last_p, this_p, classification_points)
-                    if [last_p, this_p] not in lines_used and [this_p, last_p] not in lines_used:
-                        lines_used.append([last_p, this_p])
-                classification_points[self.argmax(this_values)].append(this_p)
-                last_values = this_values
-                last_p = this_p
-            area1 = linear_region_variations[0].polygon.area
-            area2 = 0
-            for m in classification_points:
-                if len(classification_points[m]) != 2:
-                    area2 += Polygon(classification_points[m]).area
-                    self.append_to_dictionary(classification_polygons, m, Polygon(classification_points[m]))
+            # Collect all k versions of the final tessellations
+            linear_region_variations = [self.skeletons[skeleton_index].linear_regions[lr_index]
+                                        for skeleton_index in range(len(self.skeletons))]
+            # Asses if they are the same (they should be)
+            self.test_equality_of_variants(linear_region_variations)
+            # Store which parts of lr belong to which class
+            current_subpolygons = {0: linear_region_variations[0].polygon}
+            # Iterate through all lr variants (in 3D)
+            for class_index in range(1, len(self.skeletons)):
+                current_subpolygons[class_index] = []
+                current_lr = linear_region_variations[class_index].polygon
+                current_gradient = linear_region_variations[class_index].gradient
+                # Next go through variants from 0 to (class_index - 1) and see if they intersect with current_lr in 3D
+                for subpolygon_class in range(class_index):
+                    subpolygon = current_subpolygons[subpolygon_class]
+                    subpolygon_gradient = linear_region_variations[subpolygon_class].gradient
+                    # Continue iff part of the lr belongs to subpolygon_class
+                    if subpolygon is not None:
+                        subpolygon1, subpolygon2 = self.find_polygon_intersection(
+                            subpolygon, linear_region_variations[subpolygon_class].polygon, current_lr,
+                            self.skeletons[subpolygon_class].values, subpolygon_gradient,
+                            self.skeletons[class_index].values,  current_gradient)
+                        """if lr_index == 159:
+                            polygons.append(subpolygon1)
+                            polygons.append(subpolygon2)"""
+                        current_subpolygons[subpolygon_class] = subpolygon1
+                        if subpolygon2 is not None:
+                            current_subpolygons[class_index].append(subpolygon2)
+                if len(current_subpolygons[class_index]) > 0:
+                    current_subpolygon = current_subpolygons[class_index][0]
+                    for i in range(1, len(current_subpolygons[class_index])):
+                        current_subpolygon = current_subpolygon.union(current_subpolygons[class_index][i])
+                    current_subpolygons[class_index] = current_subpolygon
                 else:
-                    area2 += LineString(classification_points[m]).area
-                    self.append_to_dictionary(classification_polygons, m, LineString(classification_points[m]))
-            if abs(area1 - area2) > 1e-1:
-                print(linear_region_variations[0].polygon)
-                for m in classification_points:
-                    print(Polygon(classification_points[m]))
-                raise Exception(str(area1) + ' != ' + str(area2))
-        for m in classification_polygons:
-            while len(classification_polygons[m]) > 1:
-                if classification_polygons[m][0].intersection(classification_polygons[m][1]).area > 1e-1:
-                    print(classification_polygons[m][0].intersection(classification_polygons[m][1]).area)
-                    raise Exception
-                a1 = classification_polygons[m][0].area + classification_polygons[m][1].area
-                classification_polygons[m][0] = classification_polygons[m][0].union(classification_polygons[m][1])
-                a2 = classification_polygons[m][0].area
-                if abs(a1 - a2) > 1e-1:
-                    print(a1)
-                    print(a2)
-                    raise Exception
-                del classification_polygons[m][1]
-        return classification_polygons, lines_used
-
-    @staticmethod
-    def classify(point, decision_boundary):
-        for decision in range(len(decision_boundary) - 1):
-            poly = decision_boundary[decision][0]
-            if poly.contains(point):
-                return decision
-        return len(decision_boundary) - 1
+                    current_subpolygons[class_index] = None
+            for class_index in current_subpolygons.keys():
+                subpolygon = current_subpolygons[class_index]
+                if subpolygon is not None:
+                    if class_index in classification_polygons.keys():
+                        classification_polygons[class_index].append(subpolygon)
+                    else:
+                        classification_polygons[class_index] = [subpolygon]
+        return classification_polygons, []
 
     def plot(self, classification_polygons, lines_used, data, add_data=False, my_ax=None, skeleton=None):
         color = ['b', 'm', 'c', 'r', 'g', 'y', 'k', 'w', 'darkgrey', 'brown']

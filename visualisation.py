@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm
+import matplotlib.colors as mcolors
 import numpy as np
 import torch
 
@@ -92,14 +93,23 @@ class Visualizer:
     def draw_decision_landscape(self, elev, azim, roll, skeleton=False, decision=False, heatmap=False, save=False):
         if decision and heatmap:
             raise Exception('Cannot have both `decision` and `heatmap` set to True')
+        colors_list = ['b', 'm', 'c', 'r', 'g', 'y', 'k', 'w', 'darkgrey', 'brown']
+        rgb_colors = np.array([mcolors.to_rgb(color) for color in colors_list])
         X, Y = np.meshgrid(np.linspace(self.R.x[0], self.R.x[1], 50), np.linspace(self.R.y[0], self.R.y[1], 50))
         dec_ax = self.prepare_graph('decision landscape', '3D')
         dec_ax.view_init(elev=elev, azim=azim, roll=roll)
         decision_Zs = self.decision_functions(X, Y)
-        max_f = np.maximum(decision_Zs[0], decision_Zs[1])
+
+        # Compute the maximum decision value among all classes
+        max_f = np.max(decision_Zs, axis=0)
         if decision:
-            dec_ax.plot_surface(X, Y, max_f, facecolors=np.where(decision_Zs[0] >= decision_Zs[1], 'b', 'm'), alpha=0.6,
-                                linewidth=0)
+            # Assign colors based on the class index
+            class_indices = np.argmax(decision_Zs, axis=0)
+            color_values = np.empty((*class_indices.shape, 3))  # Create a 3D array
+            for r in range(class_indices.shape[0]):
+                for c in range(class_indices.shape[1]):
+                    color_values[r][c] = rgb_colors[class_indices[r][c]]
+            dec_ax.plot_surface(X, Y, max_f, facecolors=color_values, alpha=0.6, linewidth=0)
         if heatmap:
             dec_ax.plot_surface(X, Y, max_f, cmap=cm.coolwarm, alpha=0.8, linewidth=0, antialiased=False)
         if skeleton:

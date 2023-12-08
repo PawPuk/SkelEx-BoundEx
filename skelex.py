@@ -55,6 +55,17 @@ class SkelEx:
     def merge_activations(act: List[Skeleton], w: List[List[float]], b: List[float],
                           point_bank: Dict[Tuple[float, float], float], critical_point_creation_index: float,
                           error=1e-5) -> List[Skeleton]:
+        """
+
+        :param act: List of activations to be merged
+        :param w: weight matrix
+        :param b: bias vector
+        :param point_bank: dictionary storing all points created so far for quantification purposes
+        :param critical_point_creation_index: used to denote at which point a 0-face was formed
+        :param error: used to reduce the amount of computation and limit floating point error. If a weight is very low
+        then it doesn't contribute much in the creation of a new skeleton, and we do not lose much by removing it
+        :return: pre-activations of the next layer formed after merging act
+        """
         skeletons = []  # list containing skeleton of each neuron (n_l in total)
         for n2_index in range(len(b)):  # go through each neuron
             print(f'|  Neuron {n2_index + 1}')

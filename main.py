@@ -16,28 +16,24 @@ from visualisation import Visualizer
 
 if __name__ == '__main__':
     # You probably want to change those
-    number_of_classes = 2
+    number_of_classes = 3
     number_of_parameters = 2
-    layers_width = [number_of_parameters, 10, 10, 10, 10, 10, 10, 10, 10, number_of_classes]
+    layers_width = [number_of_parameters, 25, 5, number_of_classes]
     data_size = 1000
-    number_of_epochs = 25
+    number_of_epochs = 50
     # You probably don't want to change those
     train = False
     create_figure_for_the_dataset = False
     create_2d_figures_for_decision_functions = False
-    dataset = None  # set to 'balance_set' to work with the balance scale UCI dataset
+    dataset = None
     # You definitely don't want to change those
     global_point_bank = {}
     training_skeletons = False
     dev = "cuda" if torch.cuda.is_available() else "cpu"
-    """if torch.backends.mps.is_available():
-        dev = torch.device('mps')"""
     # Prepare dataset and hyperrectangle
-    if dataset == 'balance_scale':
-        my_data, vis_data = Dataset2D()
-    else:
-        my_data = (Dataset2D(class_size=3*data_size).data.to(dev), Dataset2D(class_size=data_size).data.to(dev))
-        vis_data = my_data
+    my_data = (Dataset2D(number_of_classes, 3*data_size).data.to(dev),
+               Dataset2D(number_of_classes, data_size).data.to(dev))
+    vis_data = my_data
     hyperrectangle = Hyperrectangle(my_data)
     if training_skeletons:
         activation_regions_count = []
@@ -120,16 +116,17 @@ if __name__ == '__main__':
             print("SkelEx finished within " + str(time()-t0) + " seconds.")
     # Run BoundEx
     boundary_extractor = BoundEx(skeletons_of_learned_decision_functions, hyperrectangle)
-    classification_polygons, lines_used = \
-        boundary_extractor.extract_decision_boundary_from_skeletons_of_decision_functions()
+    classification_polygons, lines_used = boundary_extractor.boundex()
+    """classification_polygons, lines_used = \
+        boundary_extractor.extract_decision_boundary_from_skeletons_of_decision_functions()"""
+
     print(f'The decision boundary is created via {len(lines_used)} line segments.')
     # Visualize results
     visualizer = Visualizer(skeletons_of_learned_decision_functions, trained_model, hyperrectangle, number_of_classes)
     ax = visualizer.prepare_graph("Skeleton tessellation")  # set rotation=180 to get image from Figure 1
     visualizer.plot_skeleton(None, ax)
     visualizer.plot_decision_boundary(boundary_extractor, classification_polygons, lines_used, ax, save=True)
-    visualizer.draw_loss_landscape(25, 50, 0, class_index=1, save=True)   # set class_index=1 for blue class
-    visualizer.draw_decision_landscape(25, 50, 0, skeleton=False, decision=True, heatmap=False, save=True)
+    visualizer.draw_decision_landscape(25, 25, 0, skeleton=False, decision=True, heatmap=False, save=True)
     print('Done!')
 
     if create_figure_for_the_dataset:

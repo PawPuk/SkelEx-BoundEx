@@ -48,7 +48,7 @@ class Skeleton:
     @staticmethod
     def find_the_closest_point_from_the_bank(point_bank: Dict[Tuple[float, float], float], p: Point, index: float,
                                              values: Union[Dict[Tuple[float, float], float], None],
-                                             error=pow(10, -13)) -> Tuple[float, float]:
+                                             error=pow(10, -15)) -> Tuple[float, float]:
         # go through all the points from the point_bank
         xx, yy = p.coords.xy
         if (xx[0], yy[0]) in point_bank:  # adding this increases speed as dictionary lookup is O(1).
@@ -98,7 +98,7 @@ class Skeleton:
         plt.show()
         raise Exception  # activation regions tessellate the input space so the if statement should always be executed
 
-    def update_values(self, intersection: Polygon, skeleton2: "Skeleton", new_skeleton: "Skeleton"):
+    def update_values(self, intersection: Polygon, skeleton2: "Skeleton", new_skeleton: "Skeleton", index):
         """ Iterate vertices of intersection and calculate their values given the information on skeleton2 and self
 
         :param intersection: Polygon representing the intersection of activation regions
@@ -106,18 +106,25 @@ class Skeleton:
         :param new_skeleton: Current result of summing self with skeleton2
         """
         xx, yy = intersection.exterior.coords.xy
+        s = ''
         for i in range(1, len(xx)):
             v = 0
             p = (xx[i], yy[i])
+            s += f'{p}\n'
             if p in self.values:
                 v += self.values[p]
+                s += f'aaa {v}\n'
             else:
                 v += self.calculate_value_of_point_inside_skeleton(p, self)
+                s += f'bbb {v}\n'
             if p in skeleton2.values:
                 v += skeleton2.values[p]
+                s += f'ccc {skeleton2.values[p]}\n'
             else:
                 v += skeleton2.calculate_value_of_point_inside_skeleton(p, skeleton2)
+                s += f'ddd {skeleton2.calculate_value_of_point_inside_skeleton(p, skeleton2)}\n'
             if p not in new_skeleton.values:
+                s += 'eee\n'
                 new_skeleton.values[p] = v
             elif abs(new_skeleton.values[p] - v) > 1e-15:
                 print('ERROR', abs(new_skeleton.values[p] - v))
@@ -129,6 +136,9 @@ class Skeleton:
                     print(True, skeleton2.values[p])
                 else:
                     print(False)
+            if index == 12 and v == -1.820513576877227:
+                print(s)
+                print('--------')
 
     @staticmethod
     def points_to_slope_intercept(point1, point2):
@@ -367,8 +377,10 @@ class Skeleton:
                         gradient_of_intersection = [lr.gradient[i] + lr1.gradient[i] for i in range(2)]
                         new_skeleton.linear_regions.append(LinearRegion(intersection, gradient_of_intersection))
                         t0 = time.time()
-                        self.update_values(intersection, skeleton2, new_skeleton)
+                        self.update_values(intersection, skeleton2, new_skeleton, index)
                         values_time += time.time() - t0
+                        self.measure_if_gradient_matches_with_values(
+                            LinearRegion(intersection, gradient_of_intersection), new_skeleton.values)
         # Create a figure and axis
         """print(f'Computing intersections took {100*intersection_time / (intersection_time + values_time):.0f}% of the '
               f'time, while computing values took {100*values_time / (intersection_time + values_time):.0f}%')"""
@@ -479,6 +491,35 @@ class Skeleton:
         if save:
             plt.savefig(title + '.pdf')
 
+    def measure_if_gradient_matches_with_values(self, lr, v):
+        xx, yy = lr.polygon.exterior.coords.xy
+        gradient = lr.gradient
+        for i in range(1, len(xx)):
+            if abs(v[(xx[i], yy[i])] -
+                   (v[(xx[i - 1], yy[i - 1])] + (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) *
+                    gradient[1])) > 1e-10:
+                print("-----------------------------------------------------")
+                print(i, v[(xx[i], yy[i])],
+                      v[(xx[i - 1], yy[i - 1])] + (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1],
+                      abs(v[(xx[i], yy[i])] - (v[(xx[i - 1], yy[i - 1])] +
+                                               (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])))
+                print(lr.gradient)
+                for i1 in range(len(xx)):
+                    print(xx[i1], yy[i1], v[(xx[i1], yy[i1])])
+                # Plot the Shapely polygon
+                fig, ax = plt.subplots()
+                ax.set_aspect('equal')
+                ax.set_title('Shapely Polygon')
+                ax.plot(xx, yy)
+                fig1, ax1 = plt.subplots()
+
+                # Plot each polygon
+                for lr in self.linear_regions:
+                    x, y = lr.polygon.exterior.xy
+                    ax1.plot(x, y)
+                plt.show()
+                raise Exception
+
     def test_validity(self, point_bank=None, full_test=True, skeleton_to_test=None, error=1e-13):
         """ Test whether a skeleton covers the whole hyperrectangle, and if the linear regions do not overlap
 
@@ -495,24 +536,7 @@ class Skeleton:
                     print(p, "is not in the point bank")
                     raise Exception
         linear_region_union = skeleton_to_test.linear_regions[0].polygon
-        xx, yy = skeleton_to_test.linear_regions[0].polygon.exterior.coords.xy
-        gradient = skeleton_to_test.linear_regions[0].gradient
-        for i in range(1, len(xx)):
-            if abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i - 1], yy[i - 1])] +
-                   (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])) > 1e-10:
-                print("-----------------------------------------------------")
-                print(i, skeleton_to_test.values[(xx[i], yy[i])], skeleton_to_test.values[(xx[i - 1], yy[i - 1])] +
-                      (xx[i] - xx[i - 1]) * gradient[0] + (yy[i] - yy[i - 1]) * gradient[1])
-                print(skeleton_to_test.linear_regions[0].gradient)
-                for i1 in range(len(xx)):
-                    print(xx[i1], yy[i1], skeleton_to_test.values[(xx[i1], yy[i1])])
-                # Plot the Shapely polygon
-                fig, ax = plt.subplots()
-                ax.set_aspect('equal')
-                ax.set_title('Shapely Polygon')
-                ax.plot(xx, yy)
-                plt.show()
-                raise Exception
+        self.measure_if_gradient_matches_with_values(skeleton_to_test.linear_regions[0], skeleton_to_test.values)
         # Check if any two linear regions overlap (if their intersection is a Polygon)
         test_index = 1
         for lr in skeleton_to_test.linear_regions[1:]:
@@ -556,26 +580,7 @@ class Skeleton:
 
                 # Show the plots
                 plt.show()"""
-            xx, yy = lr.polygon.exterior.coords.xy
-            gradient = lr.gradient
-            for i in range(1, len(xx)):
-                if abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i-1], yy[i-1])] +
-                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])) > 1e-10:
-                    print("-----------------------------------------------------")
-                    print(i, skeleton_to_test.values[(xx[i], yy[i])], skeleton_to_test.values[(xx[i-1], yy[i-1])] +
-                          (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1],
-                          abs(skeleton_to_test.values[(xx[i], yy[i])] - (skeleton_to_test.values[(xx[i-1], yy[i-1])] +
-                       (xx[i] - xx[i-1]) * gradient[0] + (yy[i] - yy[i-1]) * gradient[1])))
-                    print(lr.gradient)
-                    for i1 in range(len(xx)):
-                        print(xx[i1], yy[i1], skeleton_to_test.values[(xx[i1], yy[i1])])
-                    # Plot the Shapely polygon
-                    fig, ax = plt.subplots()
-                    ax.set_aspect('equal')
-                    ax.set_title('Shapely Polygon')
-                    ax.plot(xx, yy)
-                    plt.show()
-                    raise Exception
+            self.measure_if_gradient_matches_with_values(lr, skeleton_to_test.values)
             test_index += 1
             intersection = linear_region_union.intersection(lr.polygon)
             if intersection and intersection.area > error:
